@@ -4,7 +4,7 @@ DriveLoom is an independent Home Assistant integration for vehicle analytics, GP
 
 ## Installation
 
-Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. The package also contains `hacs.json` for a future independent GitHub repository and HACS custom-repository installation.
+Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
 
 The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, add `/driveloom/driveloom-card-0.1.0.js?v=0.1.0` as a JavaScript module yourself.
 
