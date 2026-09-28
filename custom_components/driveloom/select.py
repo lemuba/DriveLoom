@@ -31,7 +31,6 @@ class DriveLoomRangePresetSelect(SelectEntity):
     """One integration-wide quick selection for the comparison period."""
 
     _attr_has_entity_name = True
-    _attr_name = None
     _attr_translation_key = "range_preset"
     _attr_unique_id = "global_range_preset"
     _attr_suggested_object_id = "driveloom_vergleichszeitraum_schnellwahl"
