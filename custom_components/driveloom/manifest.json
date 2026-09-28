@@ -1,10 +1,10 @@
 {
   "domain": "driveloom",
   "name": "DriveLoom",
-  "version": "0.1.0",
+  "codeowners": [
+    "@lemuba"
+  ],
   "config_flow": true,
-  "integration_type": "device",
-  "iot_class": "calculated",
   "dependencies": [
     "frontend",
     "http",
@@ -12,9 +12,9 @@
     "recorder"
   ],
   "documentation": "https://github.com/lemuba/driveloom",
+  "integration_type": "device",
+  "iot_class": "calculated",
   "issue_tracker": "https://github.com/lemuba/driveloom/issues",
-  "codeowners": [
-    "@lemuba"
-  ],
-  "requirements": []
+  "requirements": [],
+  "version": "0.1.0"
 }
