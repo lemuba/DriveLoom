@@ -1,0 +1,19 @@
+{
+  "domain": "driveloom",
+  "name": "DriveLoom",
+  "version": "0.1.0",
+  "config_flow": true,
+  "integration_type": "device",
+  "iot_class": "calculated",
+  "dependencies": [
+    "frontend",
+    "lovelace",
+    "recorder"
+  ],
+  "documentation": "https://github.com/lemuba/driveloom",
+  "issue_tracker": "https://github.com/lemuba/driveloom/issues",
+  "codeowners": [
+    "@lemuba"
+  ],
+  "requirements": []
+}
