@@ -40,7 +40,6 @@ class DriveLoomGlobalDate(DateEntity):
         self.key = key
         self._attr_unique_id = f"global_{key}"
         self._attr_suggested_object_id = f"driveloom_vergleichszeitraum_{'von' if key == 'range_from' else 'bis'}"
-        self._attr_name = None
         self._attr_translation_key = key
         self._attr_icon = "mdi:calendar-start" if key == "range_from" else "mdi:calendar-end"
         self._attr_device_info = DeviceInfo(
