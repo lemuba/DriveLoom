@@ -275,9 +275,8 @@ class DriveLoomSensor(SensorEntity):
         self.description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_suggested_object_id = f"driveloom_{slugify(entry.title)}_{description.key}"
-        # Keep unique IDs and entity IDs stable while letting Home Assistant
-        # translate the visible entity name from translations/<lang>.json.
-        self._attr_name = None
+        # Leave _attr_name unset: an explicitly present value, even None,
+        # takes precedence over the translated name in Home Assistant.
         self._attr_translation_key = description.key
         self._attr_native_unit_of_measurement = description.unit
         self._attr_device_class = description.device_class
