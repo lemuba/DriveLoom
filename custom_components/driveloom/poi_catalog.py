@@ -110,6 +110,19 @@ async def _read_index(response: Any) -> bytes:
     return b"".join(parts)
 
 
+async def _save_download(response: Any, handle: Any, hass: HomeAssistant,
+                         total: int | None, report: Any) -> int:
+    """Stream a country extract to disk and report committed byte counts."""
+    size = 0
+    async for chunk in response.content.iter_chunked(1024 * 1024):
+        size += len(chunk)
+        if size > MAX_DOWNLOAD_BYTES:
+            raise ValueError("OSM-Auszug ist größer als 64 GiB")
+        await hass.async_add_executor_job(handle.write, chunk)
+        report(size, total)
+    return size
+
+
 def _merge_country_results(groups: list[list[dict[str, Any]]],
                            latitude: float, longitude: float, limit: int) -> list[dict[str, Any]]:
     unique: dict[tuple[str, int], dict[str, Any]] = {}
@@ -130,6 +143,49 @@ def _intersects(bounds: list[float] | None, latitude: float,
     lon_delta = radius_km / max(1.0, 111.320 * abs(math.cos(math.radians(latitude))))
     return (south <= latitude + lat_delta and north >= latitude - lat_delta
             and west <= longitude + lon_delta and east >= longitude - lon_delta)
+
+
+def _catalog_path(directory: Path, region: str) -> Path:
+    digest = hashlib.sha256(region.encode("utf-8")).hexdigest()[:20]
+    return directory / f"driveloom-pois-{digest}.db"
+
+
+def _stored_catalogs(directory: Path) -> list[dict[str, Any]]:
+    """List only complete DriveLoom region files, including deselected ones."""
+    if not directory.exists():
+        return []
+    stored = []
+    for path in directory.glob("driveloom-pois-*.db"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as con:
+                meta = dict(con.execute("SELECT key,value FROM meta WHERE key IN ('region','count','updated')"))
+            region = meta.get("region", "")
+            if (not re.fullmatch(r"[a-z0-9][a-z0-9/_-]{0,110}", region)
+                    or path != _catalog_path(directory, region)):
+                continue
+            stored.append({"key": region, "count": int(meta["count"]),
+                           "updated": float(meta["updated"]), "bytes": path.stat().st_size})
+        except (sqlite3.Error, KeyError, ValueError, OSError):
+            _LOGGER.warning("Could not inspect DriveLoom POI catalogue %s", path)
+    return sorted(stored, key=lambda item: item["key"])
+
+
+def _delete_catalog_file(directory: Path, region: str) -> int:
+    """Delete exactly one identified complete catalogue; never the main DB."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9/_-]{0,110}", region):
+        raise ValueError("Ungültige Region")
+    path = _catalog_path(directory, region)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Gespeicherter POI-Katalog nicht gefunden")
+    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as con:
+        row = con.execute("SELECT value FROM meta WHERE key='region'").fetchone()
+    if not row or row[0] != region:
+        raise ValueError("Katalogdatei gehört nicht zu dieser Region")
+    size = path.stat().st_size
+    path.unlink()
+    return size
 
 # Keep the frontend's most specific category precedence. The POI filter
 # template is evaluated against the resulting category at query time.
@@ -382,12 +438,12 @@ class PoiCatalog:
         self.task: asyncio.Task | None = None
         self.index_task: asyncio.Task | None = None
         self.current_region = ""
+        self.progress: dict[str, Any] = {}
         self.cancel_timer: Any = None
         self.errors: dict[str, str] = {}
 
     def path_for(self, region: str) -> Path:
-        digest = hashlib.sha256(region.encode("utf-8")).hexdigest()[:20]
-        return self.directory / f"driveloom-pois-{digest}.db"
+        return _catalog_path(self.directory, region)
 
     async def async_setup(self) -> None:
         stored = await self.store.async_load() or {}
@@ -504,12 +560,18 @@ class PoiCatalog:
         return {
             "settings": {**self.settings, "regions": selected},
             "regions": details,
+            "stored": [
+                {**item, "name": self.available.get(item["key"], {}).get("name", item["key"]),
+                 "selected": item["key"] in selected}
+                for item in _stored_catalogs(self.directory)
+            ],
             "available": [
                 {"key": key, "name": item["name"]}
                 for key, item in sorted(self.available.items(),
                                         key=lambda pair: pair[1]["name"].casefold())
             ],
             "updating": self.task is not None and not self.task.done(),
+            "progress": dict(self.progress),
             "index_updating": self.index_task is not None and not self.index_task.done(),
             "index_error": self.index_error,
         }
@@ -549,6 +611,7 @@ class PoiCatalog:
                 _LOGGER.warning("DriveLoom POI country %s failed: %s", region, err)
             finally:
                 self.current_region = ""
+                self.progress = {}
 
     async def _download_and_import(self, region: str) -> None:
         info = self.available.get(region)
@@ -557,6 +620,7 @@ class PoiCatalog:
         path = self.path_for(region)
         source = path.with_suffix(".download.pbf")
         target = path.with_suffix(".new.db")
+        self.progress = {"region": region, "stage": "download", "downloaded": 0, "total": None}
         await self.hass.async_add_executor_job(self.directory.mkdir, 0o777, True, True)
         await self.hass.async_add_executor_job(source.unlink, True)
         await self.hass.async_add_executor_job(target.unlink, True)
@@ -574,15 +638,17 @@ class PoiCatalog:
                 size = 0
                 handle = await self.hass.async_add_executor_job(source.open, "wb")
                 try:
-                    async for chunk in response.content.iter_chunked(1024 * 1024):
-                        size += len(chunk)
-                        if size > MAX_DOWNLOAD_BYTES:
-                            raise ValueError("OSM-Auszug ist größer als 64 GiB")
-                        await self.hass.async_add_executor_job(handle.write, chunk)
+                    def report(downloaded: int, total: int | None) -> None:
+                        self.progress = {"region": region, "stage": "download",
+                                         "downloaded": downloaded, "total": total}
+
+                    size = await _save_download(response, handle, self.hass, length or None, report)
                 finally:
                     await self.hass.async_add_executor_job(handle.close)
             if size < 100:
                 raise ValueError("Unvollständiger OSM-Auszug")
+            self.progress = {"region": region, "stage": "import", "downloaded": size,
+                             "total": length or None}
             count = await self.hass.async_add_executor_job(_build_catalog, source, target, region)
             await self.hass.async_add_executor_job(os.replace, target, path)
             _LOGGER.info("DriveLoom POI catalogue: %s POIs in %s", count, region)
@@ -724,8 +790,38 @@ async def websocket_reload_index(hass: HomeAssistant, connection: websocket_api.
     connection.send_result(msg["id"], await hass.async_add_executor_job(catalog.status))
 
 
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/poi_catalog/delete",
+    vol.Required("region"): str,
+})
+@websocket_api.async_response
+async def websocket_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                           msg: dict[str, Any]) -> None:
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Nur Administratoren können einen POI-Katalog löschen")
+        return
+    catalog = manager(hass)
+    region = msg["region"]
+    if region in catalog.settings["regions"]:
+        connection.send_error(msg["id"], "catalog_selected", "Region zuerst abwählen und speichern")
+        return
+    if catalog.task and not catalog.task.done():
+        connection.send_error(msg["id"], "catalog_busy", "Import abwarten, dann erneut löschen")
+        return
+    try:
+        deleted_bytes = await hass.async_add_executor_job(_delete_catalog_file, catalog.directory, region)
+    except (ValueError, OSError, sqlite3.Error) as err:
+        connection.send_error(msg["id"], "delete_failed", str(err))
+        return
+    connection.send_result(msg["id"], {
+        "deleted_bytes": deleted_bytes,
+        "status": await hass.async_add_executor_job(catalog.status),
+    })
+
+
 def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, websocket_status)
     websocket_api.async_register_command(hass, websocket_configure)
     websocket_api.async_register_command(hass, websocket_refresh)
     websocket_api.async_register_command(hass, websocket_reload_index)
+    websocket_api.async_register_command(hass, websocket_delete)

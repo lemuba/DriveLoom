@@ -972,5 +972,43 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.equal(request.type,'driveloom/poi_catalog/reload_index');
     assert.match(panel.innerHTML,/France/);
   });
+  await test('stored country catalogues show size and require confirmation to delete',async()=>{
+    const {c,panel}=fixture();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
+    c._poiCatalogStatus={settings:{regions:['germany'],hour:2,interval_days:1},
+      available:[{key:'germany',name:'Deutschland'},{key:'europe/france',name:'France'}],
+      regions:{germany:{}},stored:[
+        {key:'germany',name:'Deutschland',bytes:1048576,selected:true},
+        {key:'europe/france',name:'France',bytes:2097152,selected:false}]};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/Deutschland · 1 MiB/);
+    assert.match(panel.innerHTML,/data-region="germany"[^>]*disabled[^>]*aria-label="Deutschland löschen"/);
+    let request;
+    c._hass.callWS=async req=>{request=req;return {status:{...c._poiCatalogStatus,
+      stored:c._poiCatalogStatus.stored.slice(0,1)}};};
+    const french=panel.querySelectorAll('.poi-catalog-delete').find(button=>button.dataset.region==='europe/france');
+    await french.click();
+    assert.equal(request.type,'driveloom/poi_catalog/delete');
+    assert.equal(request.region,'europe/france');
+    assert.match(panel.innerHTML,/France gelöscht/);
+    assert.doesNotMatch(panel.innerHTML,/data-region="europe\/france"[^>]*aria-label="France löschen"/);
+  });
+  await test('country download displays known total and import has no invented percentage',async()=>{
+    const {c,panel}=fixture();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
+    c._poiCatalogStatus={settings:{regions:['germany'],hour:2,interval_days:1},
+      available:[{key:'germany',name:'Deutschland'}],regions:{germany:{updating:true}},updating:true,
+      progress:{region:'germany',stage:'download',downloaded:80*1024*1024,total:100*1024*1024}};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/Deutschland · Download 80 % · 80 MiB \/ 100 MiB/);
+    assert.match(panel.innerHTML,/<progress value="80" max="100"/);
+    c._poiCatalogStatus.progress={region:'germany',stage:'import',downloaded:100*1024*1024,total:100*1024*1024};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/Download abgeschlossen \(100 MiB\). POIs werden importiert/);
+    assert.doesNotMatch(panel.innerHTML,/<progress value="100"/);
+    c._poiCatalogStatus.progress={region:'germany',stage:'download',downloaded:7*1024*1024,total:null};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/7 MiB · Gesamtgröße unbekannt/);
+  });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

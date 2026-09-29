@@ -4,7 +4,10 @@ from __future__ import annotations
 import ast
 import asyncio
 import importlib.util
+import hashlib
+import io
 import json
+import logging
 import math
 import re
 import sqlite3
@@ -35,7 +38,9 @@ def distance(a, b, c, d):
 namespace = {"POI_CLAUSES": clauses, "re": re, "sqlite3": sqlite3, "json": json,
              "math": math, "time": __import__("time"), "_haversine_m": distance,
              "Any": object, "Path": Path, "unicodedata": unicodedata,
-             "urlsplit": urlsplit, "INDEX_MAX_BYTES": 8 * 1024 * 1024}
+             "urlsplit": urlsplit, "INDEX_MAX_BYTES": 8 * 1024 * 1024,
+             "hashlib": hashlib, "_LOGGER": logging.getLogger(__name__),
+             "HomeAssistant": object, "MAX_DOWNLOAD_BYTES": 64 * 1024 ** 3}
 spec = importlib.util.spec_from_file_location("driveloom_pbf_test", ROOT / "pbf_reader.py")
 pbf_reader = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pbf_reader)
@@ -49,9 +54,10 @@ selected = [
     )
     or isinstance(node, ast.FunctionDef) and node.name in {
         "_category", "_normal", "_build_catalog", "_query", "_valid_pbf_url",
-        "_parse_index", "_merge_country_results", "_intersects"
+        "_parse_index", "_merge_country_results", "_intersects",
+        "_catalog_path", "_stored_catalogs", "_delete_catalog_file"
     }
-    or isinstance(node, ast.AsyncFunctionDef) and node.name == "_read_index"
+    or isinstance(node, ast.AsyncFunctionDef) and node.name in {"_read_index", "_save_download"}
 ]
 exec(compile(ast.Module(body=selected, type_ignores=[]), "<catalog-production>", "exec"), namespace)
 namespace["_LEGACY_PATHS"] = {"europe/germany": "germany"}
@@ -97,6 +103,32 @@ except ValueError as err:
 else:
     raise AssertionError("Oversized index must be rejected")
 print("PASS country index reads all chunks and enforces its size limit")
+
+
+class Executor:
+    async def async_add_executor_job(self, action, *args):
+        return action(*args)
+
+
+saved = io.BytesIO()
+reports = []
+response = types.SimpleNamespace(content=ChunkedContent([b"abc", b"defgh", b"ij"]))
+size = asyncio.run(namespace["_save_download"](
+    response, saved, Executor(), 10, lambda downloaded, total: reports.append((downloaded, total))
+))
+assert size == 10 and saved.getvalue() == b"abcdefghij"
+assert reports == [(3, 10), (8, 10), (10, 10)]
+namespace["MAX_DOWNLOAD_BYTES"] = 9
+try:
+    asyncio.run(namespace["_save_download"](
+        response, io.BytesIO(), Executor(), None, lambda *_: None
+    ))
+except ValueError:
+    pass
+else:
+    raise AssertionError("Oversized PBF must be rejected")
+namespace["MAX_DOWNLOAD_BYTES"] = 64 * 1024 ** 3
+print("PASS streamed download reports committed bytes and enforces the limit")
 
 
 class Location:
@@ -221,3 +253,28 @@ with tempfile.TemporaryDirectory() as temp:
     assert len(namespace["_query"](target, "europe/testland", 53.5, 9.5, 5,
                                    ["restaurant", "parking"], "", 10)[0]) == 2
 print("PASS dependency-free PBF importer: dense nodes, way coordinates, catalogue query")
+
+with tempfile.TemporaryDirectory() as temp:
+    directory = Path(temp)
+    region = "germany"
+    target = namespace["_catalog_path"](directory, region)
+    with sqlite3.connect(target) as con:
+        con.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)")
+        con.executemany("INSERT INTO meta VALUES (?,?)", [
+            ("region", region), ("count", "4000"), ("updated", "123456.0")
+        ])
+    central = directory / "driveloom.db"
+    central.write_bytes(b"important vehicle data")
+    stored = namespace["_stored_catalogs"](directory)
+    assert len(stored) == 1 and stored[0]["key"] == region and stored[0]["bytes"] > 0
+    try:
+        namespace["_delete_catalog_file"](directory, "../driveloom")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Invalid regions must not be deleted")
+    freed = namespace["_delete_catalog_file"](directory, region)
+    assert freed == stored[0]["bytes"] and not target.exists()
+    assert central.read_bytes() == b"important vehicle data"
+    assert namespace["_stored_catalogs"](directory) == []
+print("PASS catalogue deletion removes only the deselected region file, not DriveLoom data")

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.13 — POI-Downloadfortschritt
+
+- Report bytes written and the advertised total while a country extract downloads. The POI panel shows a percentage and progress bar when total size is known, or an indeterminate indicator with the downloaded amount otherwise.
+- Show the subsequent SQLite import as a separate indeterminate phase so a completed transfer cannot be mistaken for a completed catalogue.
+- Poll catalogue status every five seconds while downloading and retain the previous completed catalogue until import succeeds.
+- Version both Lovelace cards as `driveloom-card-0.1.13.js`.
+
+## 0.1.12 — Lokale POI-Kataloge löschen
+
+- List all completed country catalogue files with their on-disk size, including regions no longer selected for map searches.
+- Let administrators delete an unselected catalogue after confirmation; block deletion during an import and verify the exact region database before removing it. DriveLoom's central database is never a deletion target.
+- Keep country selection and scheduled refresh settings separate from the file deletion. Re-selecting a deleted country triggers a fresh download and import.
+- Version both Lovelace cards as `driveloom-card-0.1.12.js`.
+
 ## 0.1.11 — Länderindex und POI-Panel
 
 - Read the full Geofabrik country index in bounded chunks before decoding JSON. Fix the partial 8 KiB response that left only the built-in German regions visible.
