@@ -383,14 +383,75 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._vehicles=()=>[{deviceId:'live',valid:true,lat,lon}];c._tileProvider=()=>({maxZoom:20,terrain:false});
     c._syncVehicleMapMarkers=()=>{};c._renderVehiclePanel=()=>{};c._renderPoiPanel=()=>{};
     assert.equal(c._focusVehicle('live',{follow:true,showPopup:false,animate:false}),true);
+    assert.equal(zoom,13);
     assert.equal(wheel.options.around,'center');assert.equal(touch.options.around,'center');
-    c._changeZoom(-2);assert.equal(center.lat,lat);assert.equal(center.lng,lon);assert.equal(zoom,13);
+    c._changeZoom(-2);assert.equal(center.lat,lat);assert.equal(center.lng,lon);assert.equal(zoom,11);
     c._handleMapDragStart({originalEvent:{touches:[{},{}]}});
     assert.equal(c._mode,'gps');
     lat=54.003;lon=9.004;c._followSelectedVehiclePosition({animate:false});
     assert.equal(center.lat,lat);assert.equal(center.lng,lon);
     c._handleMapDragStart({originalEvent:{touches:[{}]}});
     assert.notEqual(c._mode,'gps');assert.equal(wheel.options,undefined);assert.equal(touch.options,undefined);
+  });
+  await test('GPS remains active through every basemap and toggles independently',async()=>{
+    const {c}=fixture();c._mode='gps';c._selectedVehicleId='live';
+    c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9,lastChanged:'2026-09-18T17:40:00Z'}];
+    c._renderMap=()=>{};
+    for(const style of ['osm','osm_detail','topo','satellite','terrain']) {
+      c._setMode(style);assert.equal(c._mode,'gps');assert.equal(c._lastFreeMode,style);
+    }
+    c._setMode('gps');assert.equal(c._mode,'terrain');
+  });
+  await test('a normal map render does not interrupt an active follow camera move',async()=>{
+    const {c}=fixture();let moving=true,jumps=0;
+    const mapHost={};c.shadowRoot.getElementById=id=>id==='vector-map'?mapHost:null;
+    c._mode='gps';c._mapStyleId='osm';c._center={lat:54.01,lon:9.01};c._zoom=13;
+    c._syncFollowZoomAnchor=()=>{};c._syncTerrainView=()=>{};
+    Object.assign(c._vectorMap,{resize(){},setMaxZoom(){},isMoving:()=>moving,
+      getCenter:()=>({lat:54,lng:9}),getZoom:()=>13,jumpTo(){jumps++;}});
+    const provider={id:'osm',maxZoom:20,maplibreStyle:{}};
+    c._syncVectorBasemap(provider);assert.equal(jumps,0);
+    moving=false;c._syncVectorBasemap(provider);assert.equal(jumps,1);
+  });
+  await test('phone status updates recenter live camera with chosen zoom',async()=>{
+    const {c}=fixture();let center={lat:54,lng:9},zoom=12;
+    c._mode='gps';c._selectedVehicleId='live';c._trackingStatus.sources=[{id:'phone'}];
+    c._vehicles=()=>[{deviceId:'live',valid:true,lat:c._trackingStatus.vehicles[0].session?.last_fix?.lat ?? 54,
+      lon:c._trackingStatus.vehicles[0].session?.last_fix?.lon ?? 9,
+      lastChanged:c._trackingStatus.vehicles[0].session?.last_fix?.ts}];
+    c._syncVehicleMapMarkers=()=>{};c._renderVehiclePanel=()=>{};
+    Object.assign(c._vectorMap,{getCenter:()=>center,getZoom:()=>zoom,getBearing:()=>0,stop(){},
+      easeTo(camera){center={lat:camera.center[1],lng:camera.center[0]};zoom=camera.zoom;}});
+    c._hass.callWS=async()=>({vehicles:[{entry_id:'one',name:'BMW iX1',gps_configured:true,
+      session:{active:true,last_fix:{lat:54.002,lon:9.004,ts:'2026-09-18T17:41:00Z'}}}],sources:[{id:'phone',vehicles:['one']}]});
+    await c._loadTrackingStatus(true);
+    assert.equal(center.lat,54.002);assert.equal(center.lng,9.004);assert.equal(zoom,12);
+  });
+  await test('phone follow checks for new fixes faster than the normal history refresh',async()=>{
+    const {c}=fixture();let calls=0;c._trackingStatus.sources=[{id:'phone'}];c._mode='gps';
+    c._loadTrackingStatus=async()=>{calls++;};
+    await c._refreshTracking();now+=5000;await c._refreshTracking();assert.equal(calls,2);
+    c._mode='osm';now+=5000;await c._refreshTracking();assert.equal(calls,2);
+    now+=10000;await c._refreshTracking();assert.equal(calls,3);
+  });
+  await test('live heading follows plausible fixes and holds through jitter and a GPS jump',async()=>{
+    const {c}=fixture();let fix={deviceId:'live',valid:true,lat:54,lon:9,lastChanged:'2026-09-18T17:40:00Z'};
+    let center={lat:54,lng:9},bearing=0,zoom=12;
+    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[fix];
+    Object.assign(c._vectorMap,{getCenter:()=>center,getZoom:()=>zoom,getBearing:()=>bearing,stop(){},
+      jumpTo(camera){center={lat:camera.center[1],lng:camera.center[0]};bearing=camera.bearing??bearing;}});
+    c._followSelectedVehiclePosition({animate:false});
+    fix={...fix,lon:9.001,lastChanged:'2026-09-18T17:40:30Z'};
+    c._followSelectedVehiclePosition({animate:false});assert.ok(bearing>80&&bearing<100);
+    const held=bearing;
+    fix={...fix,lon:9.00101,lastChanged:'2026-09-18T17:40:45Z'};
+    c._followSelectedVehiclePosition({animate:false});assert.equal(bearing,held);
+    fix={...fix,lat:55,lastChanged:'2026-09-18T17:40:46Z'};
+    c._followSelectedVehiclePosition({animate:false});assert.equal(bearing,held);
+    fix={...fix,lat:54.001,lastChanged:'2026-09-18T17:41:15Z'};
+    c._followSelectedVehiclePosition({animate:false});assert.ok(bearing<20||bearing>340);
+    c._vectorMap.getPitch=()=>0;c._vectorMap.setTerrain=()=>{};c._vectorMap.getLayer=()=>null;
+    const recovered=bearing;c._syncTerrainView({terrain:false},{animate:false});assert.equal(bearing,recovered);
   });
   await test('saved native GPS checkbox stays checked after a phone GPS session stops',async()=>{
     const {c,panel}=fixture();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 — Live GPS follow camera
+
+- Keep GPS follow active across OSM, OSM+, Topo, Satellite and 3D, with the chosen zoom preserved and the active style shown alongside GPS.
+- Recenter after phone GPS status updates (checked every five seconds during live follow) and style changes; keep the existing MapLibre map instance while the vehicle moves.
+- Rotate the live map toward the direction of successive plausible fixes, retaining the last reliable heading through jitter, stops and gaps.
+- Allow the GPS button to turn follow off; intentional panning and historical track actions still release the live camera.
+- Bundle both Lovelace cards under the versioned `driveloom-card-0.1.2.js` resource.
+
 ## 0.1.1 — Entity name translations
 
 - Show each sensor's translated function beside its vehicle name instead of repeating only the vehicle name.
