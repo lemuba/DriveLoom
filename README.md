@@ -23,9 +23,6 @@ Home Assistant itself still owns the integration's configuration entries and cre
 
 Do not copy the live SQLite file while Home Assistant is writing to it: SQLite WAL files may hold uncheckpointed changes. A dedicated export/restore feature is outside this release.
 
-## Offline verification
-
-Run `python -m unittest discover -s tests -p 'test_*.py' -q` and `node tests/test_frontend.cjs`. These checks cannot replace a real Home Assistant startup and a short drive with GPS recording.
 
 ## License
 
