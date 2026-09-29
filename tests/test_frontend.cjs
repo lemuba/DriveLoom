@@ -464,27 +464,43 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
       poi('IONITY-behind',8.99),poi('Tesla-side',9.01,54.03)];
     c._applyPoiClientFilters();
     assert.equal(c._poiAheadCandidate().poi.id,'EnBW');
+    assert.equal(c._poiAheadCandidates().slice(0,3).map(item=>item.poi.id).join(','),'EnBW,Tesla,IONITY');
     c._poiCategories.add('restaurant');c._poiRawResults.push({id:'diner',name:'Diner',category:'restaurant',lat:54,lon:9.005});
-    c._applyPoiClientFilters();assert.equal(c._poiAheadCandidate().poi.id,'diner');
+    c._applyPoiClientFilters();assert.equal(c._poiAheadCandidates().slice(0,3).map(item=>item.poi.id).join(','),'diner,EnBW,Tesla');
     c._poiCategories.delete('restaurant');c._applyPoiClientFilters();
     c._poiOperators=['IONITY','Tesla'];c._applyPoiClientFilters();
     assert.equal(c._poiAheadCandidate().poi.id,'Tesla');
     lon=9.016;assert.equal(c._poiAheadCandidate().poi.id,'IONITY');
     lon=9.021;assert.equal(c._poiAheadCandidate(),null);
   });
-  await test('POI hint asks before Google Maps navigation and hides without fresh follow',async()=>{
-    const {c}=fixture();const chip=new Element();
+  await test('three POI rows confirm the tapped destination, even after its rank changes',async()=>{
+    const {c}=fixture();const chip=new Element();let lon=9;
     c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
-    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9,lastChanged:new Date(now).toISOString()}];
+    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon,lastChanged:new Date(now).toISOString()}];
     c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
     c._poiCategories=new Set(['charging']);c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
-    c._poiResults=[{id:'enbw',name:'Ladestation',operator:'EnBW',category:'charging',lat:54,lon:9.02}];
-    c._renderPoiAhead();assert.match(chip.innerHTML,/EnBW/);assert.match(chip.innerHTML,/Luftlinie/);
+    c._poiResults=[{id:'enbw',name:'Ladestation',operator:'EnBW',category:'charging',lat:54,lon:9.01},
+      {id:'ionity',name:'Ladestation',operator:'IONITY',category:'charging',lat:54,lon:9.02},
+      {id:'tesla',name:'Tesla Supercharger',category:'charging',lat:54,lon:9.03}];
+    c._renderPoiAhead();assert.match(chip.innerHTML,/EnBW/);assert.match(chip.innerHTML,/IONITY/);
+    assert.match(chip.innerHTML,/Tesla/);assert.match(chip.innerHTML,/3\. POI/);assert.match(chip.innerHTML,/Luftlinie/);
     assert.equal(chip.classList.contains('hidden'),false);
-    chip.querySelector('#poi-ahead-open').click();
+    const rows=chip.querySelectorAll('[data-poi-ahead-id]');assert.equal(rows.length,3);
+    rows[2].click();assert.equal(c._poiAheadConfirmId,'tesla');
     assert.match(chip.innerHTML,/Zu diesem POI navigieren/);
+    assert.match(chip.innerHTML,/Tesla/);
+    assert.doesNotMatch(chip.innerHTML,/EnBW/);
+    assert.match(chip.innerHTML,/destination=54%2C9\.03/);
     assert.match(chip.innerHTML,/id="poi-ahead-navigate"[^>]*dir_action=navigate/);
-    chip.querySelector('#poi-ahead-cancel').click();assert.ok(chip.querySelector('#poi-ahead-open'));
+    c._poiResults.unshift({id:'fastned',name:'Fastned',category:'charging',lat:54,lon:9.005});
+    c._renderPoiAhead();assert.match(chip.innerHTML,/Tesla/);
+    chip.querySelector('#poi-ahead-cancel').click();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    assert.doesNotMatch(chip.innerHTML,/Tesla/);
+    c._poiResults=[{id:'ionity',name:'IONITY',category:'charging',lat:54,lon:9.02}];
+    c._renderPoiAhead();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,1);
+    chip.querySelector('[data-poi-ahead-id]').click();lon=9.021;
+    c._renderPoiAhead();assert.equal(chip.classList.contains('hidden'),true);
+    lon=9;c._renderPoiAhead();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,1);
     c._poiAheadEnabled=false;c._renderPoiAhead();assert.equal(chip.classList.contains('hidden'),true);
     c._preferencesLoaded=true;c._savePreferences();await [...timeouts].at(-1).fn();
     const saved=c.requests.findLast(req=>req.type==='driveloom/preferences/set');
@@ -494,15 +510,18 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._mode='gps';c._liveFollowFix.timestamp=now-11*60*1000;c._renderPoiAhead();
     assert.equal(chip.classList.contains('hidden'),true);
   });
-  await test('POI suggestion holds its target through small ranking changes',async()=>{
+  await test('POI rows stay ordered by current distance and disappear after passing',async()=>{
     const {c}=fixture();c._mode='gps';c._selectedVehicleId='live';
     c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9}];
     c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
     c._poiCategories=new Set(['charging']);c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
     c._poiResults=[{id:'ionity',category:'charging',lat:54,lon:9.02},
       {id:'enbw',category:'charging',lat:54,lon:9.018}];
-    c._poiAheadId='ionity';assert.equal(c._poiAheadCandidate().poi.id,'ionity');
-    c._poiResults[1].lon=9.01;assert.equal(c._poiAheadCandidate().poi.id,'enbw');
+    assert.equal(c._poiAheadCandidates().slice(0,2).map(item=>item.poi.id).join(','),'enbw,ionity');
+    c._poiResults[1].lon=9.03;
+    assert.equal(c._poiAheadCandidates().slice(0,2).map(item=>item.poi.id).join(','),'ionity,enbw');
+    c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9.021}];
+    assert.equal(c._poiAheadCandidates().map(item=>item.poi.id).join(','),'enbw');
   });
   await test('POI panel switch controls the suggestion and remains saved',async()=>{
     const {c}=fixture();const panel=new Element();
@@ -513,6 +532,31 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._preferencesLoaded=true;c._savePreferences();await [...timeouts].at(-1).fn();
     const saved=c.requests.findLast(req=>req.type==='driveloom/preferences/set');
     assert.equal(saved.preferences.poiAheadEnabled,false);
+  });
+  await test('stationary test button previews three nearest POIs without heading and expires',async()=>{
+    const {c}=fixture();const panel=new Element();const chip=new Element();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='poi-ahead'?chip:null;
+    c._mode='osm';c._poiAheadEnabled=false;c._selectedVehicleId='live';
+    c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9}];
+    c._poiCategories=new Set(['charging']);c._poiRadiusKm=5;
+    c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
+    c._poiResults=[{id:'behind',name:'Behind',category:'charging',lat:54,lon:8.995},
+      {id:'enbw',name:'EnBW',category:'charging',lat:54,lon:9.01},
+      {id:'ionity',name:'IONITY',category:'charging',lat:54,lon:9.02},
+      {id:'tesla',name:'Tesla',category:'charging',lat:54,lon:9.03}];
+    c._renderPoiPanel();assert.match(panel.innerHTML,/id="poi-ahead-preview"/);
+    assert.equal(c._poiAheadCandidates().length,0);
+    panel.querySelector('#poi-ahead-preview').click();
+    assert.equal(panel.classList.contains('hidden'),true);
+    assert.match(chip.innerHTML,/Testansicht/);
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]')[0].dataset.poiAheadId,'behind');
+    chip.querySelectorAll('[data-poi-ahead-id]')[2].click();
+    assert.match(chip.innerHTML,/Testansicht/);
+    assert.match(chip.innerHTML,/destination=54%2C9\.02/);
+    [...timeouts].at(-1).fn();
+    assert.equal(chip.classList.contains('hidden'),true);
+    assert.match(panel.innerHTML,/POI-Hinweis testen/);
   });
   await test('saved native GPS checkbox stays checked after a phone GPS session stops',async()=>{
     const {c,panel}=fixture();

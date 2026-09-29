@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 — Larger three-destination POI suggestions
+
+- Show up to three eligible POIs ahead in separate, larger touch targets during GPS follow; show fewer rows when fewer matches are available.
+- Keep all three suggestions ordered by current straight-line distance and confirm the specifically tapped destination before Google Maps opens.
+- Increase the mobile card width, name and distance text, and confirmation button sizes for use on a phone.
+- Add a two-minute test preview in the POI panel: show the three nearest loaded POIs while stationary, clearly labeled without implying a direction of travel.
+- Version both Lovelace cards as `driveloom-card-0.1.4.js`.
+
 ## 0.1.3 — POIs ahead during GPS follow
 
 - Suggest the nearest loaded and filtered POI ahead of the followed vehicle, with an explicitly labeled straight-line distance.
