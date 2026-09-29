@@ -33,6 +33,7 @@ from .controller import GlobalRangeController
 from .runtime import VehicleRuntime
 from .poi import async_register_websocket
 from .poi_templates import async_register_websocket as async_register_template_websocket
+from .poi_catalog import async_register_websocket as async_register_catalog_websocket, manager as poi_catalog_manager
 from .route_data import async_register_websocket as async_register_route_websocket
 from .analytics_repair import async_register_websocket as async_register_analytics_repair_websocket
 from .preferences import async_register_websocket as async_register_preferences_websocket
@@ -45,8 +46,8 @@ from .tracking import (
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_URL = "/driveloom"
-FRONTEND_CARD_PATH = f"{FRONTEND_URL}/driveloom-card-0.1.8.js"
-FRONTEND_MODULE = f"{FRONTEND_CARD_PATH}?v=0.1.8"
+FRONTEND_CARD_PATH = f"{FRONTEND_URL}/driveloom-card-0.1.10.js"
+FRONTEND_MODULE = f"{FRONTEND_CARD_PATH}?v=0.1.10"
 FRONTEND_CARD_PREFIX = f"{FRONTEND_URL}/driveloom-card"
 DATA_FRONTEND_REGISTERED = "frontend_registered"
 
@@ -130,6 +131,11 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     # browsers and Companion WebViews do not depend on third-party CORS.
     async_register_websocket(hass)
     async_register_template_websocket(hass)
+    async_register_catalog_websocket(hass)
+    try:
+        await poi_catalog_manager(hass).async_setup()
+    except Exception:
+        _LOGGER.exception("Could not initialize DriveLoom POI catalogue")
     async_register_route_websocket(hass)
     async_register_analytics_repair_websocket(hass)
     async_register_preferences_websocket(hass)

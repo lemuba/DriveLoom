@@ -6,7 +6,7 @@ DriveLoom is an independent Home Assistant integration for vehicle analytics, GP
 
 Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
 
-The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.1.8.js?v=0.1.8` as a JavaScript module.
+The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.1.10.js?v=0.1.10` as a JavaScript module.
 
 On the map, GPS toggles live follow independently of OSM, OSM+, Topo, Satellite and 3D. Choose a style or zoom while following; a deliberate drag or another fit/track action exits live follow. With successive reliable position fixes, the map turns to keep the direction of travel at the top. The live camera uses the vehicle's current position, including a configured phone source; historical track markers do not control the camera.
 
@@ -20,6 +20,16 @@ The double arrows jump directly to the farthest or nearest visible group. Tappin
 
 The POI settings panel scrolls vertically on tablets and phones. In the map suggestion, swipe the POI rows to browse farther or nearer places, use a trackpad or mouse wheel, or drag the compact position slider below the arrows. The card still renders only the configured 1–3 rows at a time, including when hundreds of places are loaded.
 
+### Regional POI catalogue
+
+Open **Points of Interest → Regionaler POI-Katalog**, select any available countries (and optionally German federal states), choose the local Home Assistant hour and refresh interval (1–30 days), then save. An administrator must configure the shared catalogue. The first import starts automatically. The panel shows the count, last successful update and errors for each selection; refresh all or one country manually. Country options come from Geofabrik's index and require access to that service on first use.
+
+The catalogue downloads a Geofabrik OpenStreetMap PBF extract for each selection (Germany is several GB) and builds a separate SQLite file in `<HA configuration>/.storage/` per region. A temporary download and database need additional space for each import. A failed import keeps the previous completed catalogue for that selection. Adjacent countries can be selected together for cross-border trips. Scheduled refreshes require Home Assistant to be running; stale catalogues also start updating after restart. Imports run one at a time. A dependency-free PBF reader works on HA installations where `osmium` cannot be installed; if `osmium` is already available, imports use its faster parser. Large countries can take substantially longer with the built-in reader. OCM continues to provide charging stations.
+
+Spatial queries merge and deduplicate vehicle-near POIs and POIs in the visible map area across the selected countries. MapLibre clusters markers, while GPS follow uses the nearby results for its 1–3 destinations. Set a map result ceiling of 500–10,000 (3,000 on first enabling the catalogue). This limits each request, not the number stored in the regional databases. Zoom or filter in very dense areas to see other places. Ways use their approximate coordinate center; POIs mapped only as OSM multipolygon relations are not included. Deselect all countries for the old general-POI live search (up to 200 km).
+
+The catalogue is a periodic location snapshot, not a source of live opening hours or charger availability. OSM data © OpenStreetMap contributors, distributed via Geofabrik under the ODbL.
+
 ## Persistent data
 
 DriveLoom stores its own persistent data in `<HA configuration>/.storage/driveloom.db`:
@@ -28,6 +38,8 @@ DriveLoom stores its own persistent data in `<HA configuration>/.storage/drivelo
 - trip identities, merged trips, folders and assignments;
 - vehicle consumption counters, daily history, source sensor observations and trip analytics counter samples;
 - global date selections, route templates, destinations, POI templates, map preferences and server-side charging-station caches.
+
+The optional POI catalogues are stored separately in `.storage/driveloom-pois-<region hash>.db` so each completed replacement can be activated atomically. An existing v0.1.9 `driveloom-pois.db` catalogue is migrated automatically when possible.
 
 The daily consumption history remains a **daily_history table** rather than a separate ledger file. Map preferences are stored per Home Assistant user. Browser map tiles remain a disposable local cache; fullscreen state is temporary. The large charging-register CSV is downloaded to a temporary file and removed after parsing.
 

@@ -32,6 +32,7 @@ class Element {
   get innerHTML() {return this.html || '';}
   querySelectorAll(selector) {
     if (selector.startsWith('#')) return this.children.filter(n=>n.id === selector.slice(1));
+    if (selector.endsWith(':checked')) return this.querySelectorAll(selector.slice(0,-8)).filter(n=>n.checked);
     if (selector.startsWith('.')) return this.children.filter(n=>(n.attrs.class || '').split(' ').includes(selector.slice(1)));
     const match = selector.match(/^\[([^=\]]+)(?:="([^"]*)")?\]$/);
     return match ? this.children.filter(n=>match[1] in n.attrs && (match[2] === undefined || n.attrs[match[1]] === match[2])) : [];
@@ -919,6 +920,42 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     const select=panel.querySelector('[data-trip-folder="member-1"]');select.value='first';
     await select.events.change({target:select});
     assert.equal(req.action,'move');assert.equal(req.trips.length,1);assert.equal(req.trips[0].trip_id,'member-1');
+  });
+  await test('regional POI requests follow the viewport and use indexed text search',async()=>{
+    const {c}=fixture();
+    c._poiCategories=new Set(['restaurant']);
+    c._poiSearchText='McDonalds';
+    c._poiMaxResults=3000;
+    c._poiCatalogStatus={settings:{regions:['germany']}};
+    let west=9;
+    c._vectorMap={getBounds:()=>({
+      getSouth:()=>53,getWest:()=>west,getNorth:()=>55,getEast:()=>11
+    })};
+    const center={mode:'vehicle',lat:54,lon:10,key:'vehicle:live',deviceId:'live'};
+    const first=c._poiRequestSnapshot(center);
+    assert.equal(first.maxResults,3000);
+    assert.equal(first.searchFilter,'McDonalds');
+    assert.deepEqual([...first.viewport],[53,9,55,11]);
+    west=9.5;
+    assert.notEqual(c._poiCacheKey(center),first.key);
+  });
+  await test('country checkboxes save multiple regions and show per-country progress',async()=>{
+    const {c,panel}=fixture();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
+    c._poiCatalogStatus={settings:{regions:['germany'],hour:2,interval_days:1},
+      available:[{key:'germany',name:'Deutschland'},{key:'europe/france',name:'France'}],
+      regions:{germany:{count:8000,updated:1750000000},'europe/france':{error:'Disk full'}}};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/8\.000 POIs/);
+    assert.match(panel.innerHTML,/France/);
+    const france=panel.querySelectorAll('.poi-catalog-region').find(input=>input.value==='europe/france');
+    france.checked=true;france.events.change();
+    let request;
+    c._hass.callWS=async req=>{request=req;return c._poiCatalogStatus;};
+    c._resetPoiRequestState=()=>{};c._savePreferences=()=>{};c._schedulePoiLoad=()=>{};
+    await c._configurePoiCatalog();
+    assert.equal(request.type,'driveloom/poi_catalog/configure');
+    assert.deepEqual([...request.regions],['germany','europe/france']);
   });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.10 — Länderübergreifender POI-Katalog und Installationsfix
+
+- Remove the mandatory `osmium==4.3.1` requirement that prevented Home Assistant from loading DriveLoom on incompatible installations. A bundled PBF reader imports nodes and POI ways without external Python dependencies; an already available osmium is used for faster imports.
+- Select multiple Geofabrik country extracts, including German states. Refresh them on the shared local schedule or individually; retain each last complete database after failures and migrate an existing 0.1.9 catalogue.
+- Merge and deduplicate nearby POIs across the selected countries, with status, counts, and errors per country. Preserve Open Charge Map for charging stations and the existing live search when no country is selected.
+- Replace the old single-region picker with a touch friendly checklist, and version both Lovelace cards as `driveloom-card-0.1.10.js`.
+
+## 0.1.9 — Regional POI catalogue
+
+- Import a selectable Geofabrik OSM extract into a spatially indexed SQLite catalogue on Home Assistant. A completed import atomically replaces the previous catalogue; errors retain the last good data.
+- Schedule local-time refreshes and manual updates; show region, count, last successful time and errors. Only admins may change or refresh the shared catalogue.
+- Apply saved POI presets and text filters locally, querying both vehicle-near and visible-map POIs for GPS follow and map markers.
+- Set a 500–10,000 map result limit (3,000 when first enabling the catalogue). Keep OCM charging data and the old live search when the catalogue is off.
+- Version both Lovelace cards as `driveloom-card-0.1.9.js`.
+
 ## 0.1.8 — POI touch scrolling
 
 - Let the right POI settings panel scroll fully on iPad and retain its scroll position when refreshed.
