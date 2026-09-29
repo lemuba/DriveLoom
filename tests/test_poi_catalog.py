@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import importlib.util
 import json
 import math
@@ -34,7 +35,7 @@ def distance(a, b, c, d):
 namespace = {"POI_CLAUSES": clauses, "re": re, "sqlite3": sqlite3, "json": json,
              "math": math, "time": __import__("time"), "_haversine_m": distance,
              "Any": object, "Path": Path, "unicodedata": unicodedata,
-             "urlsplit": urlsplit}
+             "urlsplit": urlsplit, "INDEX_MAX_BYTES": 8 * 1024 * 1024}
 spec = importlib.util.spec_from_file_location("driveloom_pbf_test", ROOT / "pbf_reader.py")
 pbf_reader = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pbf_reader)
@@ -50,6 +51,7 @@ selected = [
         "_category", "_normal", "_build_catalog", "_query", "_valid_pbf_url",
         "_parse_index", "_merge_country_results", "_intersects"
     }
+    or isinstance(node, ast.AsyncFunctionDef) and node.name == "_read_index"
 ]
 exec(compile(ast.Module(body=selected, type_ignores=[]), "<catalog-production>", "exec"), namespace)
 namespace["_LEGACY_PATHS"] = {"europe/germany": "germany"}
@@ -68,6 +70,33 @@ assert namespace["_intersects"]([50, 8, 55, 12], 54, 10, 20)
 shared = {"type": "node", "id": 23, "lat": 54, "lon": 10}
 other = {"type": "way", "id": 24, "lat": 54.1, "lon": 10}
 assert namespace["_merge_country_results"]([[shared], [shared, other]], 54, 10, 10) == [shared, other]
+
+
+class ChunkedContent:
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    async def iter_chunked(self, _size):
+        for chunk in self.chunks:
+            yield chunk
+
+
+payload = json.dumps({**index, "description": "x" * 9000}).encode()
+assert len(payload) > 8192
+body = asyncio.run(namespace["_read_index"](
+    types.SimpleNamespace(content=ChunkedContent([payload[:8192], payload[8192:]]))
+))
+assert body == payload and len(namespace["_parse_index"](json.loads(body))) == 21
+try:
+    asyncio.run(namespace["_read_index"](
+        types.SimpleNamespace(content=ChunkedContent([b"x" * (4 * 1024 * 1024),
+                                                      b"x" * (4 * 1024 * 1024 + 1)]))
+    ))
+except ValueError as err:
+    assert "zu groß" in str(err)
+else:
+    raise AssertionError("Oversized index must be rejected")
+print("PASS country index reads all chunks and enforces its size limit")
 
 
 class Location:

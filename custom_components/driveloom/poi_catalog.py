@@ -64,6 +64,7 @@ DEFAULT_SETTINGS = {"regions": [], "hour": 2, "interval_days": 1}
 MAX_DOWNLOAD_BYTES = 64 * 1024**3
 INDEX_URL = "https://download.geofabrik.de/index-v1-nogeom.json"
 INDEX_TTL_SECONDS = 7 * 24 * 60 * 60
+INDEX_MAX_BYTES = 8 * 1024 * 1024
 _LEGACY_PATHS = {path: key for key, (_, path) in REGIONS.items()}
 
 
@@ -95,6 +96,18 @@ def _parse_index(payload: dict[str, Any]) -> dict[str, dict[str, str]]:
     if len(regions) < 20:
         raise ValueError("Der Geofabrik-Länderindex ist unvollständig")
     return regions
+
+
+async def _read_index(response: Any) -> bytes:
+    """Read the complete streamed response, with a bound on its total size."""
+    parts: list[bytes] = []
+    size = 0
+    async for chunk in response.content.iter_chunked(64 * 1024):
+        size += len(chunk)
+        if size > INDEX_MAX_BYTES:
+            raise ValueError("Der Länderindex ist zu groß")
+        parts.append(chunk)
+    return b"".join(parts)
 
 
 def _merge_country_results(groups: list[list[dict[str, Any]]],
@@ -436,8 +449,8 @@ class PoiCatalog:
     def _on_timer(self, _now: datetime) -> None:
         self.hass.async_create_task(self.async_refresh_all())
 
-    async def async_update_index_if_due(self) -> None:
-        if self.index_updated and time.time() - self.index_updated < INDEX_TTL_SECONDS:
+    async def async_update_index_if_due(self, *, force: bool = False) -> None:
+        if not force and self.index_updated and time.time() - self.index_updated < INDEX_TTL_SECONDS:
             return
         if self.index_task and not self.index_task.done():
             return await asyncio.shield(self.index_task)
@@ -454,9 +467,7 @@ class PoiCatalog:
             async with asyncio.timeout(35):
                 async with session.get(INDEX_URL) as response:
                     response.raise_for_status()
-                    body = await response.content.read(8 * 1024 * 1024 + 1)
-                    if len(body) > 8 * 1024 * 1024:
-                        raise ValueError("Der Länderindex ist zu groß")
+                    body = await _read_index(response)
             available = _parse_index(json.loads(body))
             self.available.update(available)
             self.index_updated = time.time()
@@ -701,7 +712,20 @@ async def websocket_refresh(hass: HomeAssistant, connection: websocket_api.Activ
     connection.send_result(msg["id"], await hass.async_add_executor_job(catalog.status))
 
 
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/poi_catalog/reload_index"})
+@websocket_api.async_response
+async def websocket_reload_index(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                                 msg: dict[str, Any]) -> None:
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Nur Administratoren können die Länderliste aktualisieren")
+        return
+    catalog = manager(hass)
+    await catalog.async_update_index_if_due(force=True)
+    connection.send_result(msg["id"], await hass.async_add_executor_job(catalog.status))
+
+
 def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, websocket_status)
     websocket_api.async_register_command(hass, websocket_configure)
     websocket_api.async_register_command(hass, websocket_refresh)
+    websocket_api.async_register_command(hass, websocket_reload_index)

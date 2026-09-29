@@ -957,5 +957,20 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.equal(request.type,'driveloom/poi_catalog/configure');
     assert.deepEqual([...request.regions],['germany','europe/france']);
   });
+  await test('country index failure is visible beside a retry control',async()=>{
+    const {c,panel}=fixture();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
+    c._poiCatalogStatus={settings:{regions:[],hour:2,interval_days:1},
+      available:[{key:'germany',name:'Deutschland'}],regions:{},index_error:'Incomplete JSON'};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/Länder auswählen/);
+    assert.match(panel.innerHTML,/Länderliste nicht vollständig: Incomplete JSON/);
+    assert.match(source,/\.poi-catalog-section \.poi-field \.poi-catalog-region-list input\[type="checkbox"\] \{ width:20px; min-width:20px;/);
+    let request;c._hass.callWS=async req=>{request=req;return {...c._poiCatalogStatus,index_error:'',
+      available:[{key:'germany',name:'Deutschland'},{key:'europe/france',name:'France'}]};};
+    await panel.querySelector('#poi-catalog-retry-index').click();
+    assert.equal(request.type,'driveloom/poi_catalog/reload_index');
+    assert.match(panel.innerHTML,/France/);
+  });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

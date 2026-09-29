@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.11 — Länderindex und POI-Panel
+
+- Read the full Geofabrik country index in bounded chunks before decoding JSON. Fix the partial 8 KiB response that left only the built-in German regions visible.
+- Show a prominent expandable catalogue header, an inline index error and a retry button that reloads the index without restarting Home Assistant.
+- Keep country checkbox targets compact with labels directly beside them, preventing horizontal overflow on tablets and phones.
+- Version both Lovelace cards as `driveloom-card-0.1.11.js`.
+
 ## 0.1.10 — Länderübergreifender POI-Katalog und Installationsfix
 
 - Remove the mandatory `osmium==4.3.1` requirement that prevented Home Assistant from loading DriveLoom on incompatible installations. A bundled PBF reader imports nodes and POI ways without external Python dependencies; an already available osmium is used for faster imports.
