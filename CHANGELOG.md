@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.14 — Importfortschritt und kombinierte POI-Filter
+
+- Show percentage and counted POIs during the built-in two-pass PBF import; keep download progress separate. The percentage represents PBF bytes processed across both passes and stays below 100 until the catalogue is ready.
+- Filter charging station names separately from general POI names. Charging operator chips and the general search can now be combined in a saved global template, such as IONITY plus McDonald's fast food.
+- Keep existing templates and preferences compatible by applying their prior shared search term to both groups when no charging search is stored.
+- Allow deletion of a deselected, unused catalogue while another country imports; keep the active import file protected.
+- Version both Lovelace cards as `driveloom-card-0.1.14.js`.
+
 ## 0.1.13 — POI-Downloadfortschritt
 
 - Report bytes written and the advertised total while a country extract downloads. The POI panel shows a percentage and progress bar when total size is known, or an indeterminate indicator with the downloaded amount otherwise.

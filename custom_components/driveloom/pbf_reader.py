@@ -9,7 +9,7 @@ from __future__ import annotations
 import struct
 import zlib
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 
 def _varint(data: bytes, offset: int) -> tuple[int, int]:
@@ -80,7 +80,7 @@ def _tags(keys: list[int], values: list[int], strings: list[str]) -> dict[str, s
         raise ValueError("Ungültiger PBF-Stringindex") from err
 
 
-def _blocks(source: Path) -> Iterator[bytes]:
+def _blocks(source: Path, progress: Callable[[int], None] | None = None) -> Iterator[bytes]:
     with source.open("rb") as stream:
         while length_bytes := stream.read(4):
             if len(length_bytes) != 4:
@@ -98,6 +98,8 @@ def _blocks(source: Path) -> Iterator[bytes]:
             blob = stream.read(size)
             if len(blob) != size:
                 raise ValueError("Abgeschnittener PBF-Block")
+            if progress:
+                progress(stream.tell())
             blob_fields = dict(_fields(blob))
             expected = blob_fields.get(2)
             if isinstance(blob_fields.get(1), bytes):
@@ -116,10 +118,11 @@ def _blocks(source: Path) -> Iterator[bytes]:
                 yield raw
 
 
-def entities(source: Path, *, nodes: bool = True, ways: bool = True
+def entities(source: Path, *, nodes: bool = True, ways: bool = True,
+             progress: Callable[[int], None] | None = None
              ) -> Iterator[tuple[str, int, dict[str, str], float | list[int], float | None]]:
     """Yield nodes (latitude, longitude) and tagged ways (node references)."""
-    for block in _blocks(source):
+    for block in _blocks(source, progress):
         fields = list(_fields(block))
         strings = [value.decode("utf-8", "replace")
                    for number, table in fields if number == 1

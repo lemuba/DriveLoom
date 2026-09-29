@@ -993,7 +993,7 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.match(panel.innerHTML,/France gelöscht/);
     assert.doesNotMatch(panel.innerHTML,/data-region="europe\/france"[^>]*aria-label="France löschen"/);
   });
-  await test('country download displays known total and import has no invented percentage',async()=>{
+  await test('country download and two-pass import show their own progress',async()=>{
     const {c,panel}=fixture();
     c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
     c._poiCatalogStatus={settings:{regions:['germany'],hour:2,interval_days:1},
@@ -1006,9 +1006,39 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._renderPoiPanel();
     assert.match(panel.innerHTML,/Download abgeschlossen \(100 MiB\). POIs werden importiert/);
     assert.doesNotMatch(panel.innerHTML,/<progress value="100"/);
+    c._poiCatalogStatus.progress={region:'germany',stage:'import',downloaded:100*1024*1024,total:100*1024*1024,processed:50,import_total:200,poi_count:123};
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/importiert · 25 % · 123 POIs erfasst/);
+    assert.match(panel.innerHTML,/<progress value="25" max="100"/);
     c._poiCatalogStatus.progress={region:'germany',stage:'download',downloaded:7*1024*1024,total:null};
     c._renderPoiPanel();
     assert.match(panel.innerHTML,/7 MiB · Gesamtgröße unbekannt/);
+  });
+  await test('IONITY and McDonalds filters remain independent in a saved template',async()=>{
+    const {c}=fixture();
+    const panel=new Element();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
+    c._poiCategories=new Set(['charging','restaurant']);
+    c._poiOperators=['IONITY'];
+    c._poiSearchText="McDonald's";
+    c._poiChargingSearchText='';
+    c._poiRawResults=[
+      {id:'io',category:'charging',name:'IONITY A7',operator:'IONITY'},
+      {id:'mc',category:'restaurant',name:"McDonald's Nord"},
+      {id:'other',category:'restaurant',name:'Burger King'},
+      {id:'enbw',category:'charging',name:'EnBW',operator:'EnBW'},
+    ];
+    c._applyPoiClientFilters();
+    assert.deepEqual(Array.from(c._poiResults.map(p=>p.id)).sort(),['io','mc']);
+    const template=c._snapshotPoiFilter('Autobahn');
+    assert.equal(template.search,"McDonald's");
+    assert.equal(template.chargingSearch,'');
+    c._poiGlobalTemplates={'custom:dual':template};
+    c._applyPoiTemplate('custom:dual');
+    assert.equal(c._poiChargingSearchText,'');
+    c._renderPoiPanel();
+    assert.match(panel.innerHTML,/Suche \(andere POIs\)/);
+    assert.match(panel.innerHTML,/Suche \(nur Ladestationen\)/);
   });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

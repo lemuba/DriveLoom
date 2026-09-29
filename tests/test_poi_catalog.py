@@ -245,7 +245,12 @@ with tempfile.TemporaryDirectory() as temp:
     # Force the fallback, so no platform package is needed for this test.
     sys.modules["osmium"] = None
     target = Path(temp) / "fallback.db"
-    assert namespace["_build_catalog"](source, target, "europe/testland") == 2
+    import_updates = []
+    assert namespace["_build_catalog"](source, target, "europe/testland",
+                                       lambda done, total, pois: import_updates.append((done, total, pois))) == 2
+    assert import_updates and import_updates[-1] == (2 * source.stat().st_size,
+                                                      2 * source.stat().st_size, 2)
+    assert all(0 <= done <= total for done, total, _ in import_updates)
     with sqlite3.connect(target) as con:
         rows = con.execute("SELECT osm_type,osm_id,lat,lon FROM pois ORDER BY osm_id").fetchall()
         assert len(rows) == 2 and rows[0][0] == "node" and rows[1][0] == "way", rows

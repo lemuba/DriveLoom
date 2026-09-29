@@ -38,6 +38,7 @@ _TEMPLATE_SCHEMA = vol.Schema(
         ),
         vol.Required("radiusKm"): vol.In(RADIUS_OPTIONS),
         vol.Optional("search", default=""): vol.All(str, vol.Length(max=80)),
+        vol.Optional("chargingSearch"): vol.All(str, vol.Length(max=80)),
         # ``operator`` is kept for templates saved by <= 0.1.44. New templates
         # use ``operators`` so multiple charging networks can be combined.
         vol.Optional("operator", default=""): vol.All(str, vol.Length(max=80)),

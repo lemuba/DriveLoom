@@ -19,7 +19,7 @@ import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit
 
 import voluptuous as vol
@@ -223,7 +223,8 @@ def _normal(text: str) -> str:
     return "".join(char for char in expanded if char.isalnum() and not unicodedata.combining(char))
 
 
-def _build_catalog(source: Path, target: Path, region: str) -> int:
+def _build_catalog(source: Path, target: Path, region: str,
+                   progress: Callable[[int, int, int], None] | None = None) -> int:
     """Stream a PBF into an indexed SQLite database without retaining all POIs."""
     connection = sqlite3.connect(target)
     try:
@@ -294,6 +295,8 @@ def _build_catalog(source: Path, target: Path, region: str) -> int:
             osmium = None
 
         if osmium is not None:
+            if progress:
+                progress(0, 1, 0)
             class Handler(osmium.SimpleHandler):
                 def node(self, node: Any) -> None:
                     if node.location.valid():
@@ -313,6 +316,8 @@ def _build_catalog(source: Path, target: Path, region: str) -> int:
             locations = osmium.NodeLocationsForWays(osmium.index.create_map("flex_mem"))
             locations.ignore_errors()
             osmium.apply(str(source), locations, Handler())
+            if progress:
+                progress(1, 1, count + len(batch))
         else:
             # Only references of relevant POI ways are kept for pass two.
             # Temporary SQLite tables disappear when this connection closes.
@@ -322,7 +327,12 @@ def _build_catalog(source: Path, target: Path, region: str) -> int:
             """)
             wanted: set[int] = set()
             way_batch: list[tuple[int, str, str]] = []
-            for kind, osm_id, tags, lat_or_refs, lon in pbf_entities(source):
+            total_bytes = source.stat().st_size
+            def report_first(position: int) -> None:
+                if progress:
+                    progress(position, total_bytes, count + len(batch))
+
+            for kind, osm_id, tags, lat_or_refs, lon in pbf_entities(source, progress=report_first):
                 if kind == "node":
                     if tags:
                         add("node", osm_id, tags, lat_or_refs, lon)
@@ -336,7 +346,12 @@ def _build_catalog(source: Path, target: Path, region: str) -> int:
             connection.executemany("INSERT INTO ways VALUES (?,?,?)", way_batch)
             if wanted:
                 coord_batch: list[tuple[int, float, float]] = []
-                for kind, osm_id, _, lat, lon in pbf_entities(source, ways=False):
+                def report_second(position: int) -> None:
+                    if progress:
+                        progress(total_bytes + position, 2 * total_bytes, count + len(batch))
+
+                for kind, osm_id, _, lat, lon in pbf_entities(source, ways=False,
+                                                               progress=report_second):
                     if osm_id in wanted:
                         coord_batch.append((osm_id, lat, lon))
                         if len(coord_batch) >= 2000:
@@ -355,6 +370,8 @@ def _build_catalog(source: Path, target: Path, region: str) -> int:
                             sum(point[0] for point in points) / len(points),
                             sum(point[1] for point in points) / len(points))
             connection.executescript("DROP TABLE ways; DROP TABLE wanted;")
+            if progress:
+                progress(2 * total_bytes, 2 * total_bytes, count + len(batch))
         flush()
         if count == 0:
             raise ValueError("Der OSM-Auszug enthält keine unterstützten POIs")
@@ -649,7 +666,13 @@ class PoiCatalog:
                 raise ValueError("Unvollständiger OSM-Auszug")
             self.progress = {"region": region, "stage": "import", "downloaded": size,
                              "total": length or None}
-            count = await self.hass.async_add_executor_job(_build_catalog, source, target, region)
+            def report_import(processed: int, total: int, poi_count: int) -> None:
+                self.progress = {"region": region, "stage": "import", "downloaded": size,
+                                 "total": length or None, "processed": processed,
+                                 "import_total": total, "poi_count": poi_count}
+
+            count = await self.hass.async_add_executor_job(_build_catalog, source, target, region,
+                                                             report_import)
             await self.hass.async_add_executor_job(os.replace, target, path)
             _LOGGER.info("DriveLoom POI catalogue: %s POIs in %s", count, region)
         finally:
@@ -805,7 +828,7 @@ async def websocket_delete(hass: HomeAssistant, connection: websocket_api.Active
     if region in catalog.settings["regions"]:
         connection.send_error(msg["id"], "catalog_selected", "Region zuerst abwählen und speichern")
         return
-    if catalog.task and not catalog.task.done():
+    if catalog.current_region == region:
         connection.send_error(msg["id"], "catalog_busy", "Import abwarten, dann erneut löschen")
         return
     try:
