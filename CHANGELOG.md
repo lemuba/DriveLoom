@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — POIs ahead during GPS follow
+
+- Suggest the nearest loaded and filtered POI ahead of the followed vehicle, with an explicitly labeled straight-line distance.
+- Consider all selected categories and all chosen charging operators together; keep the current suggestion stable until a clearly closer POI appears or it is passed.
+- Show a two-step Google Maps navigation handoff after tapping the compact map hint.
+- Add a saved switch in the POI panel to control the hint, and hide it without a recent reliable heading or when follow ends.
+- Version both Lovelace cards as `driveloom-card-0.1.3.js`.
+
 ## 0.1.2 — Live GPS follow camera
 
 - Keep GPS follow active across OSM, OSM+, Topo, Satellite and 3D, with the chosen zoom preserved and the active style shown alongside GPS.
