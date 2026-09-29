@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.9 — Regional POI catalogue
+
+- Import a selectable Geofabrik OSM extract into a spatially indexed SQLite catalogue on Home Assistant. A completed import atomically replaces the previous catalogue; errors retain the last good data.
+- Schedule local-time refreshes and manual updates; show region, count, last successful time and errors. Only admins may change or refresh the shared catalogue.
+- Apply saved POI presets and text filters locally, querying both vehicle-near and visible-map POIs for GPS follow and map markers.
+- Set a 500–10,000 map result limit (3,000 when first enabling the catalogue). Keep OCM charging data and the old live search when the catalogue is off.
+- Version both Lovelace cards as `driveloom-card-0.1.9.js`.
+
 ## 0.1.8 — POI touch scrolling
 
 - Let the right POI settings panel scroll fully on iPad and retain its scroll position when refreshed.

@@ -920,5 +920,23 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     await select.events.change({target:select});
     assert.equal(req.action,'move');assert.equal(req.trips.length,1);assert.equal(req.trips[0].trip_id,'member-1');
   });
+  await test('regional POI requests follow the viewport and use indexed text search',async()=>{
+    const {c}=fixture();
+    c._poiCategories=new Set(['restaurant']);
+    c._poiSearchText='McDonalds';
+    c._poiMaxResults=3000;
+    c._poiCatalogStatus={settings:{region:'germany'}};
+    let west=9;
+    c._vectorMap={getBounds:()=>({
+      getSouth:()=>53,getWest:()=>west,getNorth:()=>55,getEast:()=>11
+    })};
+    const center={mode:'vehicle',lat:54,lon:10,key:'vehicle:live',deviceId:'live'};
+    const first=c._poiRequestSnapshot(center);
+    assert.equal(first.maxResults,3000);
+    assert.equal(first.searchFilter,'McDonalds');
+    assert.deepEqual([...first.viewport],[53,9,55,11]);
+    west=9.5;
+    assert.notEqual(c._poiCacheKey(center),first.key);
+  });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

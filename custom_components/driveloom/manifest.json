@@ -15,6 +15,6 @@
   "integration_type": "device",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/lemuba/driveloom/issues",
-  "requirements": [],
-  "version": "0.1.8"
+  "requirements": ["osmium==4.3.1"],
+  "version": "0.1.9"
 }

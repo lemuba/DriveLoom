@@ -2159,6 +2159,32 @@ async def _async_network_query(hass: HomeAssistant, msg: dict[str, Any]) -> dict
 
 
 async def _async_get_pois(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str, Any]:
+    # The regional catalogue is shared by all saved presets; switching one
+    # changes only filters, never downloads the region again.
+    if any(key != "charging" for key in msg["categories"]):
+        from .poi_catalog import manager
+
+        catalog = manager(hass)
+        if catalog.settings["region"]:
+            general = await catalog.async_query(msg)
+            if general is None:
+                raise RuntimeError("Der regionale POI-Katalog wird noch aufgebaut; Status im POI-Panel prüfen")
+            if "charging" in msg["categories"]:
+                charging_msg = dict(msg)
+                charging_msg["categories"] = ["charging"]
+                charging = await _async_get_pois(hass, charging_msg)
+                general["elements"].extend(charging["elements"])
+                general["elements"].sort(
+                    key=lambda item: _haversine_m(
+                        float(msg["latitude"]), float(msg["longitude"]), *_element_coords(item)
+                    ) if _element_coords(item) else float("inf")
+                )
+                general["elements"] = general["elements"][:int(msg["max_results"])]
+                general["sources"].extend(charging.get("sources", []))
+                general["warnings"].extend(charging.get("warnings", []))
+                general["charging_status"] = charging.get("charging_status", "unused")
+            general["catalog"] = True
+            return general
     domain_data = hass.data.setdefault(DOMAIN, {})
     cache: dict[tuple[Any, ...], dict[str, Any]] = domain_data.setdefault(DATA_POI_CACHE, {})
     inflight: dict[tuple[Any, ...], asyncio.Task[dict[str, Any]]] = domain_data.setdefault(
@@ -2250,7 +2276,10 @@ async def _async_get_pois(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str,
         vol.Optional("min_power_kw", default=0): vol.In([0, 50, 100, 150, 200, 300, 350]),
         vol.Optional("include_unknown_power", default=True): vol.Coerce(bool),
         vol.Optional("force_refresh", default=False): vol.Coerce(bool),
-        vol.Optional("max_results", default=500): vol.All(vol.Coerce(int), vol.Range(min=50, max=1000)),
+        vol.Optional("viewport"): vol.All(
+            [vol.Coerce(float)], vol.Length(min=4, max=4)
+        ),
+        vol.Optional("max_results", default=500): vol.All(vol.Coerce(int), vol.Range(min=50, max=10000)),
         vol.Optional("timeout_seconds", default=35): vol.All(vol.Coerce(int), vol.Range(min=15, max=90)),
     }
 )
