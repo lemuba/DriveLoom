@@ -536,6 +536,7 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:null;
     c._renderPoiPanel();const input=panel.querySelector('#poi-ahead-enabled');
     assert.ok(input);assert.equal(input.checked,true);
+    panel.scrollTop=180;c._renderPoiPanel();assert.equal(panel.scrollTop,180);
     input.checked=false;input.events.change({target:input});assert.equal(c._poiAheadEnabled,false);
     c._preferencesLoaded=true;c._savePreferences();await [...timeouts].at(-1).fn();
     const saved=c.requests.findLast(req=>req.type==='driveloom/preferences/set');
@@ -614,6 +615,28 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     chip.querySelector('#poi-ahead-nearer').click();assert.equal(ids(),'poi-2,poi-3,poi-4');
     chip.querySelectorAll('[data-poi-ahead-id]')[2].click();
     assert.match(chip.innerHTML,/destination=54%2C9\.04/);
+  });
+  await test('POI list supports touch swipes, wheel steps and a bounded touch scrubber',async()=>{
+    const {c}=fixture();const chip=new Element();c._syncPoiMapSource=()=>{};
+    c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
+    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9}];
+    c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
+    c._poiCategories=new Set(['charging']);c._poiRadiusKm=20;
+    c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
+    c._poiResults=Array.from({length:500},(_,i)=>({id:`poi-${i}`,name:`Station ${i}`,category:'charging',lat:54,lon:9.003+i*.0002}));
+    c._renderPoiAhead();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    const oldRow=chip.querySelector('[data-poi-ahead-id]');const list=chip.querySelector('.poi-ahead-list');
+    list.events.touchstart({touches:[{clientX:50,clientY:250}]});
+    list.events.touchend({changedTouches:[{clientX:52,clientY:106}]});
+    assert.equal(c._poiAheadOffset,2);assert.match(chip.innerHTML,/3–5\/500/);
+    oldRow.click();assert.equal(c._poiAheadInspect,null);
+    const scrub=chip.querySelector('#poi-ahead-scroll');assert.ok(scrub);
+    scrub.value='490';scrub.events.change({target:scrub});assert.equal(c._poiAheadOffset,490);
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    chip.querySelector('.poi-ahead-list').events.wheel({deltaY:-72,preventDefault(){this.prevented=true;}});
+    assert.equal(c._poiAheadOffset,489);
+    c._poiAheadSuppressClickUntil=0;chip.querySelectorAll('[data-poi-ahead-id]')[1].click();
+    assert.equal(c._poiAheadInspect.poi.id,'poi-490');
   });
   await test('POI inspection pauses camera follow, keeps navigation, and restores saved zoom',async()=>{
     const {c}=fixture();const panel=new Element();const chip=new Element();let lon=9;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 — POI touch scrolling
+
+- Let the right POI settings panel scroll fully on iPad and retain its scroll position when refreshed.
+- Swipe the visible POI rows to browse by touch; a compact slider offers direct positioning within the loaded result list, alongside the existing arrow buttons.
+- Support mouse wheels and trackpads over the POI list without rendering all results as HTML rows.
+- Version both Lovelace cards as `driveloom-card-0.1.8.js`.
+
 ## 0.1.7 — POI jumps and detail inspection
 
 - Add double arrow buttons to jump to the first or last loaded POI window; keep one-step browsing and 44-pixel touch targets.
