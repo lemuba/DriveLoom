@@ -581,6 +581,51 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     count.value='3';count.events.change({target:count});
     assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
   });
+  await test('POI arrows advance one result and preserve the visible anchor as GPS advances',async()=>{
+    const {c}=fixture();const chip=new Element();let lon=9;
+    c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
+    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon}];
+    c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
+    c._poiCategories=new Set(['charging']);c._poiRadiusKm=5;
+    c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
+    c._poiResults=[1,2,3,4,5,6].map(i=>({id:`poi-${i}`,name:`Station ${i}`,category:'charging',lat:54,lon:9+i*.01}));
+    const ids=()=>chip.querySelectorAll('[data-poi-ahead-id]').map(row=>row.dataset.poiAheadId).join(',');
+    c._renderPoiAhead();assert.equal(ids(),'poi-1,poi-2,poi-3');
+    assert.match(chip.innerHTML,/1–3\/6/);
+    chip.querySelector('#poi-ahead-farther').click();assert.equal(ids(),'poi-2,poi-3,poi-4');
+    chip.querySelector('#poi-ahead-farther').click();assert.equal(ids(),'poi-3,poi-4,poi-5');
+    lon=9.011;c._renderPoiAhead();assert.equal(ids(),'poi-3,poi-4,poi-5');
+    assert.equal(c._poiAheadOffset,1);
+    chip.querySelector('#poi-ahead-nearer').click();assert.equal(ids(),'poi-2,poi-3,poi-4');
+    chip.querySelectorAll('[data-poi-ahead-id]')[2].click();
+    assert.match(chip.innerHTML,/destination=54%2C9\.04/);
+  });
+  await test('compact POI preset switch waits for the new data and uses the vehicle center',async()=>{
+    const {c}=fixture();const chip=new Element();
+    c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
+    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9}];
+    c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
+    c._poiCategories=new Set(['charging']);c._poiRadiusKm=5;
+    c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
+    c._poiRawResults=[{id:'old',name:'Old EnBW',operator:'EnBW',category:'charging',lat:54,lon:9.01}];
+    c._poiResults=[...c._poiRawResults];
+    c._poiGlobalTemplates={'custom:ionity':{name:'IONITY',categories:['charging'],operators:['IONITY'],radiusKm:5,centerMode:'route'}};
+    c._renderPoiAhead();const select=chip.querySelector('#poi-ahead-template');assert.ok(select);
+    select.value='custom:ionity';select.events.change({target:select});
+    assert.equal(c._poiCenterMode,'vehicle');assert.equal(c._poiActiveTemplate,'custom:ionity');
+    assert.match(chip.innerHTML,/POIs werden geladen/);assert.doesNotMatch(chip.innerHTML,/Old EnBW/);
+    const key=c._currentPoiRequestKey();c._poiMemoryCache={[key]:{timestamp:now,results:[
+      {id:'new',name:'IONITY Nord',operator:'IONITY',category:'charging',lat:54,lon:9.02}]}};
+    await c._loadPois(false,key);
+    assert.equal(c._poiAheadTemplateLoading,false);
+    assert.match(chip.innerHTML,/IONITY Nord/);assert.doesNotMatch(chip.innerHTML,/Old EnBW/);
+    c._poiAheadTemplateLoading=true;c._renderPoiAhead();c._finishPoiAheadTemplateLoad('POI-Vorlage konnte nicht geladen werden');
+    assert.match(chip.innerHTML,/POI-Vorlage konnte nicht geladen werden/);
+    c._poiAheadTemplateError='';c._poiResults=[];c._renderPoiAhead();
+    assert.match(chip.innerHTML,/Keine passenden POIs voraus/);
+    c._vehicles=()=>[];c._renderPoiAhead();assert.equal(chip.classList.contains('hidden'),true);
+    c._mode='osm';c._renderPoiAhead();assert.equal(chip.classList.contains('hidden'),true);
+  });
   await test('driving view gives the map header space and restores controls while GPS follow stays active',async()=>{
     const {c}=fixture();const map=new Element();const header=new Element();const toolbar=new Element();const button=new Element();
     const panels=Object.fromEntries(['vehicle-panel','poi-panel','route-panel','tracking-panel'].map(id=>[id,new Element()]));
