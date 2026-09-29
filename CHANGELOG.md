@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.7 — POI jumps and detail inspection
+
+- Add double arrow buttons to jump to the first or last loaded POI window; keep one-step browsing and 44-pixel touch targets.
+- Add a configurable POI detail zoom (12–20) in the POI panel and saved global templates, with 16 as the default for older templates.
+- Tap a POI to inspect it on the map while live GPS positions continue updating without recentering the camera. A compact card keeps the precise Google Maps destination available.
+- Return to vehicle follow with its prior zoom and current travel heading, or return to the previous camera in the stationary test preview.
+- Version both Lovelace cards as `driveloom-card-0.1.7.js`.
+
 ## 0.1.6 — POI presets and browsing in GPS follow
 
 - Add a compact selector for saved global POI presets to the map suggestion card; switches reload results around the current vehicle and show loading or failure states without offering old targets as new ones.

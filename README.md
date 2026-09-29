@@ -6,7 +6,7 @@ DriveLoom is an independent Home Assistant integration for vehicle analytics, GP
 
 Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
 
-The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.1.6.js?v=0.1.6` as a JavaScript module.
+The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.1.7.js?v=0.1.7` as a JavaScript module.
 
 On the map, GPS toggles live follow independently of OSM, OSM+, Topo, Satellite and 3D. Choose a style or zoom while following; a deliberate drag or another fit/track action exits live follow. With successive reliable position fixes, the map turns to keep the direction of travel at the top. The live camera uses the vehicle's current position, including a configured phone source; historical track markers do not control the camera.
 
@@ -15,6 +15,8 @@ With POIs selected, live follow can show up to three nearest loaded, filtered PO
 The POI panel saves how many suggestions appear at once (1, 2 or 3), including in the stationary preview. On a phone the suggestion sits closer to the bottom edge. Tap the car button on the map to enter driving view: the title and both upper control rows disappear while the map grows to use their space. The visible map button restores the controls. GPS follow, zoom and the chosen basemap remain active.
 
 When global POI presets exist, a compact selector in the suggestion card can switch between them without leaving GPS follow. Selecting a preset loads its saved filters and radius around the current vehicle; the card shows a loading state until matching data arrives. If more POIs are loaded than the configured visible count, the upward arrow advances one farther result and the downward arrow returns one nearer result. The visible window stays anchored to its first surviving POI as positions update, and resets when a different preset is chosen. Results are ordered by straight-line distance within the heading corridor, not by travel distance along roads.
+
+The double arrows jump directly to the farthest or nearest visible group. Tapping a suggestion opens a compact POI detail card and centers the map on the destination at the selected detail zoom (12–20, saved with global POI presets). GPS positions and POIs continue to update while the camera stays on the POI. Use **Back to vehicle** to restore the previous follow zoom and driving direction, or **Open Google Maps** to navigate. The stationary test preview returns to its earlier map position.
 
 ## Persistent data
 

@@ -474,8 +474,9 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     lon=9.016;assert.equal(c._poiAheadCandidate().poi.id,'IONITY');
     lon=9.021;assert.equal(c._poiAheadCandidate(),null);
   });
-  await test('three POI rows confirm the tapped destination, even after its rank changes',async()=>{
+  await test('POI detail keeps the tapped destination and returns to live follow',async()=>{
     const {c}=fixture();const chip=new Element();let lon=9;
+    c._syncPoiMapSource=()=>{};
     c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
     c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon,lastChanged:new Date(now).toISOString()}];
     c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
@@ -487,20 +488,26 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.match(chip.innerHTML,/Tesla/);assert.match(chip.innerHTML,/3\. POI/);assert.match(chip.innerHTML,/Luftlinie/);
     assert.equal(chip.classList.contains('hidden'),false);
     const rows=chip.querySelectorAll('[data-poi-ahead-id]');assert.equal(rows.length,3);
-    rows[2].click();assert.equal(c._poiAheadConfirmId,'tesla');
-    assert.match(chip.innerHTML,/Zu diesem POI navigieren/);
+    c._vectorMap.getCenter=()=>({lat:54,lng:9});c._vectorMap.getZoom=()=>13;
+    c._poiDetailZoom=17;
+    rows[2].click();assert.equal(c._poiAheadInspect.poi.id,'tesla');assert.equal(c._selectedPoiId,'tesla');
+    assert.match(chip.innerHTML,/POI ansehen/);
     assert.match(chip.innerHTML,/Tesla/);
     assert.doesNotMatch(chip.innerHTML,/EnBW/);
     assert.match(chip.innerHTML,/destination=54%2C9\.03/);
     assert.match(chip.innerHTML,/id="poi-ahead-navigate"[^>]*dir_action=navigate/);
+    assert.equal(c.cameras.at(-1).zoom,17);assert.equal(c.cameras.at(-1).center[0],9.03);
     c._poiResults.unshift({id:'fastned',name:'Fastned',category:'charging',lat:54,lon:9.005});
     c._renderPoiAhead();assert.match(chip.innerHTML,/Tesla/);
-    chip.querySelector('#poi-ahead-cancel').click();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    chip.querySelector('#poi-ahead-return').click();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    assert.equal(c._poiAheadInspect,null);assert.equal(c._selectedPoiId,null);assert.equal(c._mode,'gps');
+    assert.equal(c.cameras.at(-1).zoom,13);assert.equal(c.cameras.at(-1).center[0],9);
     assert.doesNotMatch(chip.innerHTML,/Tesla/);
     c._poiResults=[{id:'ionity',name:'IONITY',category:'charging',lat:54,lon:9.02}];
     c._renderPoiAhead();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,1);
     chip.querySelector('[data-poi-ahead-id]').click();lon=9.021;
-    c._renderPoiAhead();assert.equal(chip.classList.contains('hidden'),true);
+    c._renderPoiAhead();assert.match(chip.innerHTML,/IONITY/);
+    chip.querySelector('#poi-ahead-return').click();assert.equal(chip.classList.contains('hidden'),true);
     lon=9;c._renderPoiAhead();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,1);
     c._poiAheadEnabled=false;c._renderPoiAhead();assert.equal(chip.classList.contains('hidden'),true);
     c._preferencesLoaded=true;c._savePreferences();await [...timeouts].at(-1).fn();
@@ -536,6 +543,7 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
   });
   await test('stationary test button previews three nearest POIs without heading and expires',async()=>{
     const {c}=fixture();const panel=new Element();const chip=new Element();
+    c._syncPoiMapSource=()=>{};
     c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='poi-ahead'?chip:null;
     c._mode='osm';c._poiAheadEnabled=false;c._selectedVehicleId='live';
     c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9}];
@@ -553,8 +561,10 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
     assert.equal(chip.querySelectorAll('[data-poi-ahead-id]')[0].dataset.poiAheadId,'behind');
     chip.querySelectorAll('[data-poi-ahead-id]')[2].click();
+    assert.match(chip.innerHTML,/POI ansehen/);
     assert.match(chip.innerHTML,/Testansicht/);
     assert.match(chip.innerHTML,/destination=54%2C9\.02/);
+    assert.match(chip.innerHTML,/Zurück zur Liste/);
     [...timeouts].at(-1).fn();
     assert.equal(chip.classList.contains('hidden'),true);
     assert.match(panel.innerHTML,/POI-Hinweis testen/);
@@ -583,6 +593,7 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
   });
   await test('POI arrows advance one result and preserve the visible anchor as GPS advances',async()=>{
     const {c}=fixture();const chip=new Element();let lon=9;
+    c._syncPoiMapSource=()=>{};
     c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
     c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon}];
     c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
@@ -594,11 +605,48 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.match(chip.innerHTML,/1–3\/6/);
     chip.querySelector('#poi-ahead-farther').click();assert.equal(ids(),'poi-2,poi-3,poi-4');
     chip.querySelector('#poi-ahead-farther').click();assert.equal(ids(),'poi-3,poi-4,poi-5');
+    chip.querySelector('#poi-ahead-last').click();assert.equal(ids(),'poi-4,poi-5,poi-6');
+    assert.match(chip.innerHTML,/4–6\/6/);
+    chip.querySelector('#poi-ahead-first').click();assert.equal(ids(),'poi-1,poi-2,poi-3');
+    chip.querySelector('#poi-ahead-farther').click();chip.querySelector('#poi-ahead-farther').click();
     lon=9.011;c._renderPoiAhead();assert.equal(ids(),'poi-3,poi-4,poi-5');
     assert.equal(c._poiAheadOffset,1);
     chip.querySelector('#poi-ahead-nearer').click();assert.equal(ids(),'poi-2,poi-3,poi-4');
     chip.querySelectorAll('[data-poi-ahead-id]')[2].click();
     assert.match(chip.innerHTML,/destination=54%2C9\.04/);
+  });
+  await test('POI inspection pauses camera follow, keeps navigation, and restores saved zoom',async()=>{
+    const {c}=fixture();const panel=new Element();const chip=new Element();let lon=9;
+    c._syncPoiMapSource=()=>{};
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='poi-ahead'?chip:null;
+    c._mode='gps';c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon}];
+    c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
+    c._poiCategories=new Set(['charging']);c._poiRadiusKm=5;c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
+    c._poiResults=[{id:'target',name:'IONITY',category:'charging',lat:54,lon:9.02}];
+    c._vectorMap.getZoom=()=>13;c._vectorMap.getCenter=()=>({lat:54,lng:9});
+    c._renderPoiPanel();const zoom=panel.querySelector('#poi-detail-zoom');zoom.value='18';zoom.events.change({target:zoom});
+    assert.equal(c._poiDetailZoom,18);
+    c._renderPoiAhead();chip.querySelector('[data-poi-ahead-id]').click();
+    assert.equal(c._mode,'gps');assert.equal(c._zoom,18);assert.equal(c._center.lon,9.02);
+    c._domBuilt=true;const mapHost=new Element();const vectorLayer=new Element();vectorLayer.classList.toggle=()=>{};
+    c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:id==='map'?mapHost:id==='vector-map'?vectorLayer:null;
+    for(const name of ['_syncVectorBasemap','_syncRangeMapSource','_syncVehicleMapMarkers','_syncPoiMapSource','_syncRouteMapSource','_syncTrackingMapSource','_updateMapEmptyState','_positionPopup','_positionPoiPopup']) c[name]=()=>{};
+    c._renderMap(false);assert.equal(c._center.lon,9.02);
+    c._preferencesLoaded=true;c._savePreferences();await [...timeouts].at(-1).fn();
+    const during=c.requests.findLast(req=>req.type==='driveloom/preferences/set');
+    assert.equal(during.preferences.zoom,13);assert.equal(during.preferences.center.lon,9);
+    const cameraCount=c.cameras.length;lon=9.01;c._followSelectedVehiclePosition({animate:false});
+    assert.equal(c.cameras.length,cameraCount);assert.equal(c._center.lon,9.02);
+    assert.match(chip.innerHTML,/destination=54%2C9\.02/);
+    chip.querySelector('#poi-ahead-return').click();assert.equal(c._center.lon,9.01);
+    assert.equal(c._zoom,13);assert.equal(c._mode,'gps');
+    c._savePreferences();await [...timeouts].at(-1).fn();
+    const saved=c.requests.findLast(req=>req.type==='driveloom/preferences/set');
+    assert.equal(saved.preferences.poiDetailZoom,18);
+    const other=new Card();other._applyPreferences(saved.preferences);assert.equal(other._poiDetailZoom,18);
+    assert.equal(c._snapshotPoiFilter('Charging').detailZoom,18);
+    c._poiGlobalTemplates={'custom:near':{name:'Near',categories:['charging'],radiusKm:5,detailZoom:15}};
+    c._applyPoiTemplate('custom:near');assert.equal(c._poiDetailZoom,15);
   });
   await test('compact POI preset switch waits for the new data and uses the vehicle center',async()=>{
     const {c}=fixture();const chip=new Element();

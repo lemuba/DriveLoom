@@ -28,6 +28,7 @@ WS_DELETE = f"{DOMAIN}/poi_templates/delete"
 RADIUS_OPTIONS = [2, 5, 10, 25, 50, 100, 150, 200, 500, 1000]
 POWER_OPTIONS = [0, 50, 100, 150, 200, 300, 350]
 CONNECTOR_OPTIONS = ["any", "ccs", "type2", "chademo", "tesla"]
+DETAIL_ZOOM_OPTIONS = list(range(12, 21))
 
 _TEMPLATE_SCHEMA = vol.Schema(
     {
@@ -47,6 +48,7 @@ _TEMPLATE_SCHEMA = vol.Schema(
         vol.Optional("connector", default="any"): vol.In(CONNECTOR_OPTIONS),
         vol.Optional("includeUnknownPower", default=True): vol.Coerce(bool),
         vol.Optional("centerMode", default="vehicle"): vol.In(["vehicle", "route", "map"]),
+        vol.Optional("detailZoom", default=16): vol.In(DETAIL_ZOOM_OPTIONS),
     },
     extra=vol.PREVENT_EXTRA,
 )
