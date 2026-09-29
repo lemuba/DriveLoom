@@ -39,6 +39,7 @@ class Element {
   querySelector(selector) {return this.querySelectorAll(selector)[0] || null;}
   contains(node) {return this.children.includes(node);}
   addEventListener(name, action) {this.events[name] = action;}
+  setAttribute(name, value) {this.attrs[name] = String(value);}
   focus() {}
   remove() {}
   click() {return this.events.click?.({target:this});}
@@ -557,6 +558,47 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     [...timeouts].at(-1).fn();
     assert.equal(chip.classList.contains('hidden'),true);
     assert.match(panel.innerHTML,/POI-Hinweis testen/);
+  });
+  await test('saved POI count limits live and stationary suggestions to one through three',async()=>{
+    const {c}=fixture();const panel=new Element();const chip=new Element();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='poi-ahead'?chip:null;
+    c._selectedVehicleId='live';c._vehicles=()=>[{deviceId:'live',valid:true,lat:54,lon:9}];
+    c._poiCategories=new Set(['charging']);c._poiSourceCenterKey='vehicle:live:54,9';c._poiSourceVehicleId='live';
+    c._poiResults=[9.01,9.02,9.03].map((lon,i)=>({id:`poi-${i}`,name:`POI ${i}`,category:'charging',lat:54,lon}));
+    c._mode='gps';c._liveFollowFix={deviceId:'live',lat:54,lon:9,timestamp:now};c._liveFollowBearing=90;
+    c._renderPoiAhead();assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+    c._renderPoiPanel();const count=panel.querySelector('#poi-ahead-count');
+    count.value='2';count.events.change({target:count});
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,2);
+    count.value='1';count.events.change({target:count});
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,1);
+    c._preferencesLoaded=true;c._savePreferences();await [...timeouts].at(-1).fn();
+    const saved=c.requests.findLast(req=>req.type==='driveloom/preferences/set');
+    assert.equal(saved.preferences.poiAheadCount,1);
+    const other=new Card();other._applyPreferences(saved.preferences);assert.equal(other._poiAheadCount,1);
+    c._mode='osm';c._poiAheadPreviewUntil=now+120000;c._renderPoiAhead();
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,1);
+    count.value='3';count.events.change({target:count});
+    assert.equal(chip.querySelectorAll('[data-poi-ahead-id]').length,3);
+  });
+  await test('driving view gives the map header space and restores controls while GPS follow stays active',async()=>{
+    const {c}=fixture();const map=new Element();const header=new Element();const toolbar=new Element();const button=new Element();
+    const panels=Object.fromEntries(['vehicle-panel','poi-panel','route-panel','tracking-panel'].map(id=>[id,new Element()]));
+    const hostClasses=new Set();c.classList={toggle:(name,active)=>active?hostClasses.add(name):hostClasses.delete(name)};
+    map.getBoundingClientRect=()=>({height:780});map.style.setProperty=(name,value)=>{map.style[name]=value;};
+    header.getBoundingClientRect=()=>({height:60});toolbar.getBoundingClientRect=()=>({height:100});
+    c.shadowRoot={getElementById:id=>id==='map'?map:id==='drive-view-toggle'?button:panels[id]||null,
+      querySelector:selector=>selector==='.map-header'?header:selector==='.toolbar'?toolbar:null};
+    let resize=0;let follow=0;c._vectorMap.resize=()=>resize++;
+    c._renderMap=()=>{};c._followSelectedVehiclePosition=()=>{follow++;};c._mode='gps';
+    c._setDriveView(true);assert.equal(c._driveView,true);assert.equal(map.style['--drive-view-map-height'],'940px');
+    assert.equal(hostClasses.has('drive-view'),true);assert.equal(button.attrs['aria-label'],'Bedienleiste anzeigen');
+    for(const panel of Object.values(panels))assert.equal(panel.classList.contains('hidden'),true);
+    [...frames].at(-1).fn();assert.equal(resize,1);assert.equal(follow,1);
+    c._setDriveView(false);assert.equal(hostClasses.has('drive-view'),false);
+    assert.equal(button.attrs['aria-label'],'Fahrtansicht einschalten');
+    [...frames].at(-1).fn();assert.equal(resize,2);assert.equal(follow,2);
+    assert.equal(c._mode,'gps');
   });
   await test('saved native GPS checkbox stays checked after a phone GPS session stops',async()=>{
     const {c,panel}=fixture();

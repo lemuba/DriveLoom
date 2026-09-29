@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 — Adjustable POI list and driving view
+
+- Save a 1–3 POI count for live follow and the stationary preview, retaining three as the default for existing users.
+- Move the suggestion panel slightly lower on phones.
+- Add a reversible driving view that hides the title and upper control rows, grows the map by their height and keeps a restore button on the map.
+- Preserve GPS follow, basemap and zoom while resizing the map for the view switch.
+- Version both Lovelace cards as `driveloom-card-0.1.5.js`.
+
 ## 0.1.4 — Larger three-destination POI suggestions
 
 - Show up to three eligible POIs ahead in separate, larger touch targets during GPS follow; show fewer rows when fewer matches are available.
