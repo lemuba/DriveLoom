@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0b1 — Beta: Reiseplanung und Reisearchiv
+
+- Add an independent, freely nested and movable travel folder tree with trip/archive status; it does not alter recorded GPS trips.
+- Save and edit own POIs from existing map POIs, any map point or coordinates; assign one POI to several folders and display selected folders with optional descendants on the map.
+- Add multiple editable folder notes, global POI notes and trip-specific POI notes.
+- Store arbitrary document types as SQLite BLOB chunks in a dedicated document database. Enforce a configurable total quota per trip (initially 100 MiB), with no separate per-file setting.
+- Export folders, own POIs, notes and documents to a ZIP, and restore to an empty travel archive. Upload and export use chunked Home Assistant WebSocket transfers.
+- Version both Lovelace cards as `driveloom-card-0.2.0b1.js`. GitHub release `v0.2.0b1` must be marked as a prerelease.
+
 ## 0.1.14 — Importfortschritt und kombinierte POI-Filter
 
 - Show percentage and counted POIs during the built-in two-pass PBF import; keep download progress separate. The percentage represents PBF bytes processed across both passes and stays below 100 until the catalogue is ready.

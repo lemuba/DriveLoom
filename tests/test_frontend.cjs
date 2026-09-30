@@ -1040,5 +1040,23 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.match(panel.innerHTML,/Suche \(andere POIs\)/);
     assert.match(panel.innerHTML,/Suche \(nur Ladestationen\)/);
   });
+  await test('travel folder map filter can include or exclude descendants and restore stays visible for empty archive',async()=>{
+    const {c}=fixture();
+    const panel=new Element();
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._renderTravelPanel();
+    assert.match(panel.innerHTML,/Reiseexport wiederherstellen/);
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Estland',kind:'trip',status:'planned',quota_bytes:104857600},
+      {id:'day',parent_id:'trip',name:'Tallinn',kind:'folder',status:'planned',quota_bytes:104857600}],
+      pois:[{id:'p1',name:'Hafen',lat:59,lon:24},{id:'p2',name:'Hotel',lat:60,lon:25}],
+      assignments:[{folder_id:'trip',poi_id:'p1'},{folder_id:'day',poi_id:'p2'}],notes:[],documents:[]};
+    c._travelFolderId='trip';c._travelMapVisible=true;
+    assert.deepEqual(c._travelFeatures().map(x=>x.properties.id),['p1','p2']);
+    c._travelIncludeChildren=false;
+    assert.deepEqual(c._travelFeatures().map(x=>x.properties.id),['p1']);
+    c._renderTravelPanel();
+    assert.match(panel.innerHTML,/Unterordner einbeziehen/);
+    assert.match(panel.innerHTML,/In Ordner verschieben/);
+  });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

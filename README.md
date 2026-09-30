@@ -6,7 +6,7 @@ DriveLoom is an independent Home Assistant integration for vehicle analytics, GP
 
 Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
 
-The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.1.14.js?v=0.1.14` as a JavaScript module.
+The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.2.0b1.js?v=0.2.0b1` as a JavaScript module.
 
 On the map, GPS toggles live follow independently of OSM, OSM+, Topo, Satellite and 3D. Choose a style or zoom while following; a deliberate drag or another fit/track action exits live follow. With successive reliable position fixes, the map turns to keep the direction of travel at the top. The live camera uses the vehicle's current position, including a configured phone source; historical track markers do not control the camera.
 
@@ -34,6 +34,14 @@ Spatial queries merge and deduplicate vehicle-near POIs and POIs in the visible 
 
 The catalogue is a periodic location snapshot, not a source of live opening hours or charger availability. OSM data © OpenStreetMap contributors, distributed via Geofabrik under the ODbL.
 
+### Travel planning and archive (0.2.0b1 beta)
+
+Open **Reisen** on the vehicle map. Create nested folders and mark travel destinations as **Reise**; folders can be renamed, moved to another parent, and given a planned, traveling or archived status. This folder tree is independent of recorded GPS trips. Choose a folder and display its own POIs on the map, with an option to include descendants. Save an existing map POI with **Für Reise merken**, choose any map coordinate, or enter a POI manually. Edit its name, category, website, phone, address and metadata. A saved POI can belong to multiple folders and has any number of global and trip notes. Folders also support multiple editable notes.
+
+Upload PDF, images, Office files and other document types to any folder under a trip. Files are held as BLOB chunks in a separate `.storage/driveloom-documents.db` SQLite database; metadata and folder relationships are stored in the main `driveloom.db`. The configurable quota starts at 100 MiB **per trip in total**. DriveLoom imposes no additional per-document size setting; large files still require enough free disk space and usable browser memory for downloads. The travel ZIP export includes folders, own POIs, notes and documents. Restore that export into an **empty** travel archive from the Reisen panel. A selected-folder export includes its path to the root and its descendants; **Alle Ordner** exports everything. It does not include vehicle tracks, regional POI catalogues or Home Assistant settings. Back up Home Assistant separately.
+
+This is a beta. Create the GitHub tag `v0.2.0b1` and mark the release as a prerelease. HACS installations that opt into beta releases can select it; the attached full ZIP can also be downloaded from GitHub and unpacked manually. Restart Home Assistant after copying the files, and refresh the browser if it retains an old Lovelace card.
+
 ## Persistent data
 
 DriveLoom stores its own persistent data in `<HA configuration>/.storage/driveloom.db`:
@@ -45,11 +53,13 @@ DriveLoom stores its own persistent data in `<HA configuration>/.storage/drivelo
 
 The optional POI catalogues are stored separately in `.storage/driveloom-pois-<region hash>.db` so each completed replacement can be activated atomically. An existing v0.1.9 `driveloom-pois.db` catalogue is migrated automatically when possible.
 
+The travel archive uses `travel_*` tables in `driveloom.db`; uploaded document data is stored in `.storage/driveloom-documents.db`.
+
 The daily consumption history remains a **daily_history table** rather than a separate ledger file. Map preferences are stored per Home Assistant user. Browser map tiles remain a disposable local cache; fullscreen state is temporary. The large charging-register CSV is downloaded to a temporary file and removed after parsing.
 
-Home Assistant itself still owns the integration's configuration entries and credentials, the entity and device registries, dashboards, and any HA Recorder history. Those are outside this integration's database. Existing manual Recorder import for historical GPS points remains available; the new trip-consumption and SoC-repair queries use DriveLoom's own samples from installation onward. No import from Cardata Analytics and no backup/restore feature are included in this version.
+Home Assistant itself still owns the integration's configuration entries and credentials, the entity and device registries, dashboards, and any HA Recorder history. Those are outside this integration's database. Existing manual Recorder import for historical GPS points remains available; the new trip-consumption and SoC-repair queries use DriveLoom's own samples from installation onward. No import from Cardata Analytics is included. The beta travel archive has a separate ZIP export and restore; other DriveLoom data and Home Assistant configuration are not part of that travel export.
 
-Do not copy the live SQLite file while Home Assistant is writing to it: SQLite WAL files may hold uncheckpointed changes. A dedicated export/restore feature is outside this release.
+Do not copy the live SQLite file while Home Assistant is writing to it: SQLite WAL files may hold uncheckpointed changes. Use the travel archive ZIP export for travel folders, own POIs, notes and documents; continue backing up the rest of Home Assistant separately.
 
 
 ## License
