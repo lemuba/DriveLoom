@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0b2 — Beta: Reisekarte und Dokumentvorschau
+
+- Open nested travel folders through an Explorer-style tree or breadcrumbs on desktop and touch screens. Expand branches and move folders by drag and drop, with the existing move selector as a touch fallback.
+- Separate own travel POIs from global research POIs on the map. Choose an existing global POI template while planning a trip; selecting an own POI highlights and focuses it at the saved detail zoom, then returns to the prior map camera.
+- Create a free travel POI with a long press on the map; cancel on movement. Search for a place or address with an explicit Photon request, or paste plain coordinates and supported Google Maps coordinate URLs locally to focus the map.
+- Open document details and preview supported PDFs, images and text files before downloading. Office files and other types show details and a separate Download button. Large previews require another tap.
+- Version both Lovelace cards as `driveloom-card-0.2.0b2.js`. GitHub release `v0.2.0b2` is a prerelease; stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b1 — Beta: Reiseplanung und Reisearchiv
 
 - Add an independent, freely nested and movable travel folder tree with trip/archive status; it does not alter recorded GPS trips.

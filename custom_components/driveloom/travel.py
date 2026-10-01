@@ -8,6 +8,7 @@ Home Assistant WebSocket connection; no document is exposed as a static path.
 from __future__ import annotations
 
 import base64
+import asyncio
 import hashlib
 import json
 import math
@@ -19,10 +20,13 @@ import uuid
 import zipfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import voluptuous as vol
+from aiohttp import ClientError
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
 from .db import connect, db_path
@@ -31,6 +35,8 @@ DOC_DB = "driveloom-documents.db"
 DEFAULT_QUOTA = 100 * 1024 * 1024
 MAX_CHUNK = 256 * 1024
 STORE_KEY = "travel_transfers"
+SEARCH_KEY = "travel_search"
+PHOTON_URL = "https://photon.komoot.io/api/"
 
 
 def _doc_path(hass: HomeAssistant) -> Path:
@@ -432,6 +438,54 @@ def _transfers(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
     return hass.data.setdefault(DOMAIN, {}).setdefault(STORE_KEY, {})
 
 
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/travel/search",
+                                   vol.Required("query"): vol.All(str, vol.Length(min=2, max=180))})
+@websocket_api.async_response
+async def websocket_search(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                           msg: dict[str, Any]) -> None:
+    """One explicit address search; no client-side autocomplete or location upload."""
+    query = msg["query"].strip()
+    if len(query) < 2:
+        connection.send_error(msg["id"], "travel_search_failed", "Suchbegriff zu kurz")
+        return
+    state = hass.data.setdefault(DOMAIN, {}).setdefault(SEARCH_KEY, {"lock": asyncio.Lock(),
+                                                                      "last": 0.0, "cache": {}})
+    try:
+        key = query.casefold()
+        async with state["lock"]:
+            cached = state["cache"].get(key)
+            if cached and cached[0] > time.monotonic() - 3600:
+                connection.send_result(msg["id"], {"results": cached[1]})
+                return
+            await asyncio.sleep(max(0.0, 1.1 - (time.monotonic() - state["last"])))
+            state["last"] = time.monotonic()
+            session = async_get_clientsession(hass)
+            params = urlencode({"q": query, "limit": 6, "lang": "de"})
+            async with session.get(f"{PHOTON_URL}?{params}", timeout=12,
+                                   headers={"User-Agent": "DriveLoom/0.2.0b2 (https://github.com/lemuba/driveloom)"}) as response:
+                response.raise_for_status()
+                data = await response.json(content_type=None)
+            results = []
+            for item in data.get("features", [])[:6]:
+                coords = item.get("geometry", {}).get("coordinates", [])
+                props = item.get("properties", {})
+                if len(coords) < 2 or not all(isinstance(n, (int, float)) and math.isfinite(n) for n in coords[:2]):
+                    continue
+                if abs(coords[0]) > 180 or abs(coords[1]) > 90:
+                    continue
+                title = str(props.get("name") or props.get("street") or props.get("city") or "Ort")
+                address = ", ".join(str(props[k]) for k in ("street", "housenumber", "postcode", "city", "country")
+                                    if props.get(k))
+                results.append({"name": title[:160], "address": address[:300],
+                                "lat": coords[1], "lon": coords[0]})
+            state["cache"][key] = (time.monotonic(), results)
+            if len(state["cache"]) > 200:
+                state["cache"].pop(next(iter(state["cache"])))
+        connection.send_result(msg["id"], {"results": results})
+    except (OSError, ValueError, asyncio.TimeoutError, ClientError) as err:
+        connection.send_error(msg["id"], "travel_search_failed", str(err))
+
+
 def _cleanup(info: dict[str, Any]) -> None:
     try:
         Path(info["path"]).unlink(missing_ok=True)
@@ -629,7 +683,7 @@ async def websocket_export_chunk(hass: HomeAssistant, connection: websocket_api.
 
 
 def async_register_websocket(hass: HomeAssistant) -> None:
-    for command in (websocket_list, websocket_change, websocket_upload_start,
+    for command in (websocket_list, websocket_change, websocket_search, websocket_upload_start,
                     websocket_upload_chunk, websocket_upload_finish, websocket_restore_start,
                     websocket_document_chunk, websocket_export_start, websocket_export_chunk):
         websocket_api.async_register_command(hass, command)

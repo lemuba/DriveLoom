@@ -1058,5 +1058,82 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.match(panel.innerHTML,/Unterordner einbeziehen/);
     assert.match(panel.innerHTML,/In Ordner verschieben/);
   });
+  await test('travel explorer opens nested folders and shows only own POIs on the map',async()=>{
+    const {c}=fixture(),panel=new Element(),own={data:null,setData(data){this.data=data;}},regular={data:null,setData(data){this.data=data;}};
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._vectorMap.getSource=id=>id==='driveloom-travel-pois'?own:id==='driveloom-pois'?regular:null;
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Estland',kind:'trip',status:'planned',quota_bytes:104857600},
+      {id:'day',parent_id:'trip',name:'Tallinn',kind:'folder',status:'planned',quota_bytes:104857600}],
+      pois:[{id:'p1',name:'Hafen',lat:59,lon:24},{id:'p2',name:'Hotel',lat:60,lon:25}],
+      assignments:[{folder_id:'trip',poi_id:'p1'},{folder_id:'day',poi_id:'p2'}],notes:[],documents:[]};
+    c._travelMode='own';c._travelMapVisible=true;c._poiGeoJson=function(){return this._travelOnlyActive()
+      ?{type:'FeatureCollection',features:[]}:{type:'FeatureCollection',features:[{properties:{id:'global'}}]};};
+    c._travelSelectFolder('trip');
+    assert.match(panel.innerHTML,/Tallinn/);
+    assert.equal(own.data.features.length,2);
+    assert.equal(regular.data.features.length,0);
+    panel.querySelector('[data-travel-folder="day"]').click();
+    assert.equal(c._travelFolderId,'day');assert.deepEqual(own.data.features.map(f=>f.properties.id),['p2']);
+    panel.querySelector('#travel-root').click();
+    assert.equal(c._travelFolderId,'');assert.equal(own.data.features.length,2);
+    c._travelMode='research';c._syncTravelMapSource();assert.equal(regular.data.features.length,1);
+  });
+  await test('travel POI selection focuses with chosen zoom and restores previous camera',async()=>{
+    const {c}=fixture(),panel=new Element();
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Estland',kind:'trip',status:'planned',quota_bytes:104857600}],
+      pois:[{id:'p1',name:'Hotel',lat:59,lon:24,metadata:{}}],assignments:[{folder_id:'trip',poi_id:'p1'}],notes:[],documents:[]};
+    c._travelFolderId='trip';c._poiDetailZoom=17;c._mode='osm';
+    c._vectorMap.getCenter=()=>({lng:10,lat:54});c._vectorMap.getZoom=()=>11;
+    c._vectorMap.getCanvas=()=>({getBoundingClientRect:()=>({width:900})});
+    c._vectorMap.easeTo=options=>c.cameras.push(options);
+    c._renderTravelPanel();panel.querySelector('[data-travel-poi="p1"]').click();
+    assert.equal(c._travelPoiId,'p1');assert.equal(c.cameras.at(-1).zoom,17);
+    assert.deepEqual(Array.from(c.cameras.at(-1).center),[24,59]);
+    assert.match(panel.innerHTML,/Eigener POI: Hotel/);
+    panel.querySelector('#travel-return').click();
+    assert.equal(c.cameras.at(-1).zoom,11);assert.equal(c._travelReturnCamera,null);
+  });
+  await test('travel coordinates, explicit search and document preview avoid implicit download',async()=>{
+    const {c}=fixture(),panel=new Element();c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    const parsed=c._travelParseCoordinates('https://www.google.com/maps/place/x/@59.437,24.753,15z');
+    assert.equal(parsed.lat,59.437);assert.equal(parsed.lon,24.753);
+    assert.equal(c._travelParseCoordinates('91, 20'),null);
+    c._vectorMap.easeTo=options=>c.cameras.push(options);
+    c._renderTravelPanel();await c._travelRunSearch('https://maps.app.goo.gl/short');
+    assert.match(c._travelMessage,/Kurzlinks/);
+    assert.equal(c.requests.some(r=>r.type==='driveloom/travel/search'),false);
+    c._hass.callWS=async request=>{c.requests.push(request);return {results:[{name:'Tallinn',address:'Estland',lat:59.4,lon:24.7}]};};
+    await c._travelRunSearch('Tallinn');assert.equal(c._travelSearchResults.length,1);
+    assert.equal(c.requests.at(-1).type,'driveloom/travel/search');
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Estland',kind:'trip',quota_bytes:104857600}],
+      pois:[],assignments:[],notes:[],documents:[{id:'d1',folder_id:'trip',title:'Beleg',filename:'beleg.pdf',mime:'application/pdf',size:5}]};
+    c._travelFolderId='trip';let downloaded=false;
+    c._travelReadDocument=async()=>new Blob(['PDF'],{type:'application/pdf'});
+    c._travelSaveBlob=()=>{downloaded=true;};c._renderTravelPanel();
+    await panel.querySelector('[data-travel-doc-open="d1"]').click();
+    assert.match(panel.innerHTML,/Dokumentvorschau/);assert.equal(downloaded,false);
+    await panel.querySelector('#travel-preview-download').click();assert.equal(downloaded,true);
+  });
+  await test('travel map long press creates a free point, while a moved gesture cancels it',async()=>{
+    const {c}=fixture(),panel=new Element(),listeners={};
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._travelFolderId='trip';c._mapStyleReady=true;
+    const canvas={addEventListener:(name,fn)=>{listeners[name]=fn;},removeEventListener(){},
+      getBoundingClientRect:()=>({left:5,top:10})};
+    c._vectorMap.getCanvas=()=>canvas;c._vectorMap.getLayer=()=>null;
+    c._vectorMap.addLayer=()=>{};c._vectorMap.addSource=()=>{};c._vectorMap.on=()=>{};
+    c._vectorMap.unproject=coords=>({lat:59,lon:coords[0],y:coords[1]});
+    let picked=null;c._createTravelMapPoint=location=>{picked=location;};
+    c._renderTravelPanel();c._ensureTravelMapLayer();
+    listeners.pointerdown({button:0,clientX:25,clientY:40});
+    assert.equal(timeouts.size>0,true);
+    [...timeouts].at(-1).fn();assert.equal(picked.lon,20);assert.equal(picked.y,30);
+    picked=null;listeners.pointerdown({button:0,clientX:25,clientY:40});
+    const pending=[...timeouts].at(-1);
+    listeners.pointermove({clientX:50,clientY:60});
+    assert.equal(timeouts.has(pending),false);assert.equal(picked,null);
+    c._unbindTravelMapHandlers();
+  });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});
