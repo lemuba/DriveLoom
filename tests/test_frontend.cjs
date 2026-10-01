@@ -27,7 +27,7 @@ class Element {
   }
   set innerHTML(value) {
     this.html = value;
-    this.children = [...value.matchAll(/<(input|select|button|div)\b([^>]*)>/g)].map(m=>new Element(m[2],m[1]));
+    this.children = [...value.matchAll(/<(input|select|button|div|textarea)\b([^>]*)>/g)].map(m=>new Element(m[2],m[1]));
   }
   get innerHTML() {return this.html || '';}
   querySelectorAll(selector) {
@@ -1134,6 +1134,75 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     listeners.pointermove({clientX:50,clientY:60});
     assert.equal(timeouts.has(pending),false);assert.equal(picked,null);
     c._unbindTravelMapHandlers();
+  });
+  await test('all travel POIs stay visible after closing panel and restore research layer on exit',async()=>{
+    const {c}=fixture(),panel=new Element(),own={setData(data){this.data=data;}},global={setData(data){this.data=data;}};
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._vectorMap.getSource=id=>id==='driveloom-travel-pois'?own:id==='driveloom-pois'?global:null;
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Estland',kind:'trip',quota_bytes:104857600}],
+      pois:[{id:'p1',lat:59,lon:24,name:'Camping',metadata:{category:'camping',marker_symbol:'CP',marker_color:'#2244aa'}},
+        {id:'p2',lat:58,lon:23,name:'Freier POI',metadata:{}}],assignments:[{folder_id:'trip',poi_id:'p1'}],notes:[],documents:[]};
+    c._poiGeoJson=function(){return {type:'FeatureCollection',features:this._travelOnlyActive()?[]:[{properties:{id:'global'}}]};};
+    c._travelFolderId='trip';c._travelMode='research';c._renderTravelPanel();
+    panel.querySelector('#travel-all-pois').click();
+    assert.equal(c._travelAllPois,true);assert.equal(own.data.features.length,2);
+    assert.equal(own.data.features[0].properties.glyph,'CP');
+    assert.equal(own.data.features[0].properties.color,'#2244aa');assert.equal(global.data.features.length,0);
+    panel.querySelector('#travel-close').click();assert.equal(own.data.features.length,2);
+    panel.classList.remove('hidden');c._renderTravelPanel();panel.querySelector('#travel-all-pois').click();
+    assert.equal(c._travelMode,'research');assert.equal(global.data.features.length,1);
+  });
+  await test('travel pin layer is recreated after style replacement and receives assigned POI',async()=>{
+    const {c}=fixture(),panel=new Element(),sources={},layers={};
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Reise',kind:'trip',quota_bytes:104857600}],
+      pois:[{id:'p',name:'Camping',lat:59,lon:24,metadata:{marker_color:'#224466',marker_symbol:'CP'}}],
+      assignments:[{folder_id:'trip',poi_id:'p'}],notes:[],documents:[]};
+    c._travelFolderId='trip';c._travelMapVisible=true;c._mapStyleReady=true;
+    c._vectorMap.getSource=id=>sources[id];c._vectorMap.addSource=(id)=>{sources[id]={setData(data){this.data=data;}};};
+    c._vectorMap.getLayer=id=>layers[id];c._vectorMap.addLayer=layer=>{layers[layer.id]=layer;};
+    c._vectorMap.on=()=>{};c._vectorMap.off=()=>{};
+    c._renderTravelPanel();c._syncTravelMapSource();
+    assert.equal(sources['driveloom-travel-pois'].data.features[0].properties.id,'p');
+    assert.equal(layers['driveloom-travel-symbols'].type,'symbol');
+    delete layers['driveloom-travel-pois'];delete layers['driveloom-travel-symbols'];delete layers['driveloom-travel-labels'];
+    delete sources['driveloom-travel-pois'];
+    c._syncTravelMapSource();
+    assert.equal(sources['driveloom-travel-pois'].data.features.length,1);
+  });
+  await test('PDF preview has browser fallback and document move selects another folder',async()=>{
+    const {c}=fixture(),panel=new Element();c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._travelData={folders:[{id:'a',parent_id:null,name:'Reise A',kind:'trip',quota_bytes:104857600},
+      {id:'b',parent_id:null,name:'Archiv B',kind:'folder',quota_bytes:104857600}],
+      pois:[],assignments:[],notes:[],documents:[{id:'d1',folder_id:'a',trip_id:'a',title:'Beleg',filename:'beleg.pdf',mime:'application/pdf',size:4}]};
+    c._travelFolderId='a';c._travelReadDocument=async()=>new Blob(['PDF'],{type:'application/pdf'});
+    c._renderTravelPanel();await panel.querySelector('[data-travel-doc-open="d1"]').click();
+    assert.match(panel.innerHTML,/PDF im Browser öffnen/);
+    assert.doesNotMatch(panel.innerHTML,/sandbox=""/);
+    c._travelChange=async(action,payload)=>{assert.equal(action,'document_move');assert.equal(payload.folder_id,'b');
+      c._travelData.documents[0].folder_id='b';c._travelData.documents[0].trip_id='b';return {id:'d1'};};
+    panel.querySelector('#travel-doc-target').value='b';await panel.querySelector('#travel-doc-move').click();
+    assert.equal(c._travelFolderId,'b');assert.equal(c._travelPreview,null);
+    assert.match(panel.innerHTML,/Beleg/);
+  });
+  await test('POI website, configurable marker and direct note are saved together',async()=>{
+    const {c}=fixture(),panel=new Element();c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._travelData={folders:[{id:'a',parent_id:null,name:'Reise',kind:'trip',quota_bytes:104857600}],
+      pois:[{id:'p',name:'Camping',lat:59,lon:24,metadata:{website:'example.org'}}],
+      assignments:[{folder_id:'a',poi_id:'p'}],notes:[],documents:[]};
+    c._travelFolderId='a';c._travelPoiId='p';c._renderTravelPanel();
+    assert.match(panel.innerHTML,/href="https:\/\/example.org"[^>]*target="_blank"/);
+    assert.equal(c._travelWebsiteUrl('javascript:alert(1)'),'');
+    const calls=[];c._travelChange=async(action,payload)=>{calls.push({action,payload});return {id:'p'};};
+    panel.querySelector('#travel-poi-symbol').value='CA';
+    panel.querySelector('#travel-poi-color').value='#335577';
+    panel.querySelector('#travel-poi-web').value='https://camp.example';
+    panel.querySelector('#travel-poi-main-note').value='Ruhiger Platz am Meer';
+    await panel.querySelector('#travel-poi-save').click();
+    assert.deepEqual(calls.map(x=>x.action),['poi_save','note_save']);
+    assert.equal(calls[0].payload.metadata.marker_symbol,'CA');
+    assert.equal(calls[0].payload.metadata.marker_color,'#335577');
+    assert.equal(calls[1].payload.body,'Ruhiger Platz am Meer');
   });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

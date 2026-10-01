@@ -47,8 +47,8 @@ from .tracking import (
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_URL = "/driveloom"
-FRONTEND_CARD_PATH = f"{FRONTEND_URL}/driveloom-card-0.2.0b2.js"
-FRONTEND_MODULE = f"{FRONTEND_CARD_PATH}?v=0.2.0b2"
+FRONTEND_CARD_PATH = f"{FRONTEND_URL}/driveloom-card-0.2.0b3.js"
+FRONTEND_MODULE = f"{FRONTEND_CARD_PATH}?v=0.2.0b3"
 FRONTEND_CARD_PREFIX = f"{FRONTEND_URL}/driveloom-card"
 DATA_FRONTEND_REGISTERED = "frontend_registered"
 

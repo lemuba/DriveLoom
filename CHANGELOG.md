@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0b3 — Beta: Reise-POI-Marker und Dokumente
+
+- Fix the travel map source refresh after saving an existing map POI and after map style changes. Selected own POIs receive a visible, highlighted marker.
+- Add a map switch for all own travel POIs, including unassigned POIs; hide global template POIs while it is active and restore them afterward. Pins remain visible if the travel panel is closed.
+- Let each own POI choose a marker color and one or two alphanumeric symbol characters. Show a direct website link, assignment count, and an editable shared main note beneath the address.
+- Remove the restrictive sandbox from PDF inline preview and provide a separate browser tab fallback; keep explicit Download for all document types.
+- Move documents between any folders, including folders outside a trip. Check the destination trip quota or the ordinary top-level folder's quota; never reupload the document's content during a move.
+- Version both Lovelace cards as `driveloom-card-0.2.0b3.js`. GitHub release `v0.2.0b3` is a prerelease; stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b2 — Beta: Reisekarte und Dokumentvorschau
 
 - Open nested travel folders through an Explorer-style tree or breadcrumbs on desktop and touch screens. Expand branches and move folders by drag and drop, with the existing move selector as a touch fallback.

@@ -123,4 +123,32 @@ with tempfile.TemporaryDirectory() as temp:
     assert {d["id"] for d in snapshot(main, docs)["documents"]} == {inner_id}
     assert len(snapshot(main, docs)["pois"]) == 1
 
-print("PASS Reiseordner, gemeinsame POIs, Notizen, Dokument-BLOB, Reisegrenze und Export")
+with tempfile.TemporaryDirectory() as temp:
+    main, docs = Path(temp) / "main.db", Path(temp) / "documents.db"
+    root_folder = change(main, docs, "folder_save", {"name": "2027", "quota_mb": 1})["id"]
+    ordinary = change(main, docs, "folder_save", {"name": "Juni", "parent_id": root_folder})["id"]
+    trip = change(main, docs, "folder_save", {"name": "Estland", "kind": "trip", "quota_mb": 1})["id"]
+    file = Path(temp) / "receipt.pdf"
+    file.write_bytes(b"%PDF" + b"x" * (900 * 1024))
+    transfer = {"path": str(file), "folder_id": trip, "filename": file.name,
+                "title": "Beleg", "mime": "application/pdf", "size": file.stat().st_size,
+                "sha256": hashlib.sha256(file.read_bytes()).hexdigest()}
+    doc_id = namespace["_save_document"](main, docs, transfer)["id"]
+    change(main, docs, "document_move", {"id": doc_id, "folder_id": ordinary})
+    moved = next(d for d in snapshot(main, docs)["documents"] if d["id"] == doc_id)
+    assert (moved["folder_id"], moved["trip_id"]) == (ordinary, root_folder)
+    assert base64.b64decode(namespace["_document_chunk"](docs, doc_id, 0)["content"]) == file.read_bytes()[:256 * 1024]
+    archive = Path(temp) / "all.zip"
+    namespace["_export"](main, docs, archive, "")
+    reloaded_main, reloaded_docs = Path(temp) / "restored-main.db", Path(temp) / "restored-docs.db"
+    assert namespace["_restore"](reloaded_main, reloaded_docs, archive)["documents"] == 1
+    assert snapshot(reloaded_main, reloaded_docs)["documents"][0]["trip_id"] == root_folder
+    namespace["_save_document"](main, docs, transfer)
+    try:
+        change(main, docs, "document_move", {"id": doc_id, "folder_id": trip})
+        raise AssertionError("document move over quota accepted")
+    except ValueError:
+        pass
+    assert next(d for d in snapshot(main, docs)["documents"] if d["id"] == doc_id)["folder_id"] == ordinary
+
+print("PASS Reiseordner, gemeinsame POIs, Notizen, Dokumente, Quoten, Verschieben und Export")

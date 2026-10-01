@@ -101,6 +101,7 @@ def _tree(con: sqlite3.Connection, folder_id: str) -> list[str]:
 
 def _trip(con: sqlite3.Connection, folder_id: str) -> str:
     current = folder_id
+    root = ""
     seen: set[str] = set()
     while current and current not in seen:
         seen.add(current)
@@ -109,8 +110,11 @@ def _trip(con: sqlite3.Connection, folder_id: str) -> str:
             raise ValueError("Ordner nicht gefunden")
         if row["kind"] == "trip":
             return current
+        root = current
         current = row["parent_id"]
-    raise ValueError("Dokumente brauchen einen als Reise markierten Ordner")
+    if current or not root:
+        raise ValueError("Ungültiger Zielordner")
+    return root  # Ordinary top-level folders own a quota too.
 
 
 def _snapshot(main: Path, docs: Path) -> dict[str, Any]:
@@ -152,7 +156,7 @@ def _change(main: Path, docs: Path, action: str, payload: dict[str, Any]) -> dic
             if not 1 <= quota_mb <= 100000:
                 raise ValueError("Reisegröße außerhalb des erlaubten Bereichs")
             old = con.execute("SELECT * FROM travel_folders WHERE id=?", (identifier,)).fetchone()
-            if old and old["kind"] == "trip":
+            if old and _trip(con, identifier) == identifier:
                 with connect(docs) as dc:
                     used = dc.execute("SELECT COALESCE(SUM(size),0) FROM documents WHERE trip_id=?",
                                       (identifier,)).fetchone()[0]
@@ -253,16 +257,34 @@ def _change(main: Path, docs: Path, action: str, payload: dict[str, Any]) -> dic
             with connect(docs) as dc:
                 dc.execute("UPDATE documents SET title=? WHERE id=?", (title, payload.get("id")))
             result = {"id": payload.get("id")}
+        elif action == "document_move":
+            identifier = str(payload.get("id", ""))
+            folder_id = str(payload.get("folder_id", ""))
+            destination = _trip(con, folder_id)
+            limit = con.execute("SELECT quota_bytes FROM travel_folders WHERE id=?", (destination,)).fetchone()[0]
+            with connect(docs) as dc:
+                doc = dc.execute("SELECT trip_id,size FROM documents WHERE id=?", (identifier,)).fetchone()
+                if doc is None:
+                    raise ValueError("Dokument nicht gefunden")
+                if doc["trip_id"] != destination:
+                    used = dc.execute("SELECT COALESCE(SUM(size),0) FROM documents WHERE trip_id=?", (destination,)).fetchone()[0]
+                    if used + doc["size"] > limit:
+                        raise ValueError("Verschieben würde das Gesamtvolumen des Zielordners überschreiten")
+                dc.execute("UPDATE documents SET folder_id=?,trip_id=? WHERE id=?",
+                           (folder_id, destination, identifier))
+            result = {"id": identifier, "folder_id": folder_id}
         elif action == "quota":
             folder_id = str(payload.get("folder_id", ""))
             limit = int(payload.get("quota_mb", 0))
             if not 1 <= limit <= 100000:
                 raise ValueError("Ungültige Reisegröße")
+            if _trip(con, folder_id) != folder_id:
+                raise ValueError("Gesamtvolumen nur am obersten Ordner oder an einer Reise ändern")
             with connect(docs) as dc:
                 used = dc.execute("SELECT COALESCE(SUM(size),0) FROM documents WHERE trip_id=?", (folder_id,)).fetchone()[0]
             if used > limit * 1024 * 1024:
                 raise ValueError("Das neue Gesamtvolumen liegt unter den gespeicherten Dokumenten")
-            con.execute("UPDATE travel_folders SET quota_bytes=?,updated=? WHERE id=? AND kind='trip'",
+            con.execute("UPDATE travel_folders SET quota_bytes=?,updated=? WHERE id=?",
                         (limit * 1024 * 1024, now, folder_id))
             result = {"folder_id": folder_id}
         else:
@@ -370,16 +392,31 @@ def _restore(main: Path, docs: Path, source: Path) -> dict[str, int]:
                (n["poi_id"] and n["poi_id"] not in poi_ids) for n in manifest["notes"]):
             raise ValueError("Ungültige Notiz im Reiseexport")
         totals: dict[str, int] = {}
+        folders_by_id = {folder["id"]: folder for folder in folders}
         for doc in manifest["documents"]:
             if doc["folder_id"] not in folder_ids or doc["trip_id"] not in folder_ids:
                 raise ValueError("Ungültige Dokumentzuordnung im Reiseexport")
+            current = doc["folder_id"]
+            seen: set[str] = set()
+            owner = ""
+            while current and current not in seen:
+                seen.add(current)
+                item = folders_by_id[current]
+                owner = current
+                if item["kind"] == "trip":
+                    break
+                current = item["parent_id"]
+            if current in seen and folders_by_id[owner]["kind"] != "trip":
+                raise ValueError("Zyklische Ordnerstruktur im Reiseexport")
+            if owner != doc["trip_id"]:
+                raise ValueError("Dokument gehört nicht zum angegebenen Archivbereich")
             name = f"dokumente/{doc['id']}/{doc['filename']}"
             if name not in archive.namelist() or archive.getinfo(name).file_size != doc["size"]:
                 raise ValueError("Dokument fehlt oder hat eine falsche Größe")
             totals[doc["trip_id"]] = totals.get(doc["trip_id"], 0) + doc["size"]
-        quotas = {f["id"]: f["quota_bytes"] for f in folders if f["kind"] == "trip"}
+        quotas = {f["id"]: f["quota_bytes"] for f in folders}
         if any(key not in quotas or used > quotas[key] for key, used in totals.items()):
-            raise ValueError("Dokumente überschreiten das Reisevolumen")
+            raise ValueError("Dokumente überschreiten das Gesamtvolumen")
         try:
             with connect(main) as con:
                 pending = list(folders)
@@ -462,7 +499,7 @@ async def websocket_search(hass: HomeAssistant, connection: websocket_api.Active
             session = async_get_clientsession(hass)
             params = urlencode({"q": query, "limit": 6, "lang": "de"})
             async with session.get(f"{PHOTON_URL}?{params}", timeout=12,
-                                   headers={"User-Agent": "DriveLoom/0.2.0b2 (https://github.com/lemuba/driveloom)"}) as response:
+                                   headers={"User-Agent": "DriveLoom/0.2.0b3 (https://github.com/lemuba/driveloom)"}) as response:
                 response.raise_for_status()
                 data = await response.json(content_type=None)
             results = []
