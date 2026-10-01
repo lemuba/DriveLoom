@@ -499,7 +499,7 @@ async def websocket_search(hass: HomeAssistant, connection: websocket_api.Active
             session = async_get_clientsession(hass)
             params = urlencode({"q": query, "limit": 6, "lang": "de"})
             async with session.get(f"{PHOTON_URL}?{params}", timeout=12,
-                                   headers={"User-Agent": "DriveLoom/0.2.0b3 (https://github.com/lemuba/driveloom)"}) as response:
+                                   headers={"User-Agent": "DriveLoom/0.2.0b4 (https://github.com/lemuba/driveloom)"}) as response:
                 response.raise_for_status()
                 data = await response.json(content_type=None)
             results = []

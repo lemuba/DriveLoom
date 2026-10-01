@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0b4 — Beta: sichtbare eigene Reise-POIs
+
+- Render own travel POIs as interactive MapLibre DOM markers with the saved color and 1–2 character symbol, using the same marker path as the working vehicle pins. The map layer remains for search results and as a fallback when DOM markers are unavailable.
+- Keep selected marker highlighting and click-to-focus behavior; remove markers when hidden and when the map is rebuilt. Avoid an undefined map canvas error during focus.
+- Add a frontend behavior test for visible marker creation, styling, selection, and cleanup. Version both Lovelace cards as `driveloom-card-0.2.0b4.js`. GitHub release `v0.2.0b4` is a prerelease; stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b3 — Beta: Reise-POI-Marker und Dokumente
 
 - Fix the travel map source refresh after saving an existing map POI and after map style changes. Selected own POIs receive a visible, highlighted marker.

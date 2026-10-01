@@ -1170,6 +1170,36 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._syncTravelMapSource();
     assert.equal(sources['driveloom-travel-pois'].data.features.length,1);
   });
+  await test('own travel POI is a visible DOM marker with color and glyph, selectable and removable',async()=>{
+    const {c}=fixture(),panel=new Element(),source={setData(data){this.data=data;}},created=[];
+    c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
+    c._travelData={folders:[{id:'trip',parent_id:null,name:'Reise',kind:'trip'}],
+      pois:[{id:'p',name:'Camping',lat:59,lon:24,metadata:{marker_color:'#224466',marker_symbol:'CP'}}],
+      assignments:[{folder_id:'trip',poi_id:'p'}],notes:[],documents:[]};
+    c._travelFolderId='trip';c._travelMapVisible=true;c._mapStyleReady=true;
+    c._vectorMap.getSource=id=>id==='driveloom-travel-pois'?source:null;
+    c._vectorMap.getLayer=()=>true;
+    c._maplibreLib.Marker=class {
+      constructor(options){this.element=options.element;this.element.classList.add('maplibregl-marker');created.push(this);}
+      setLngLat(coords){this.coords=coords;return this;}
+      addTo(map){this.map=map;return this;}
+      remove(){this.removed=true;}
+    };
+    c._renderTravelPanel();c._syncTravelMapSource();
+    assert.equal(created.length,1);
+    assert.equal(created[0].map,c._vectorMap);
+    assert.deepEqual(Array.from(created[0].coords),[24,59]);
+    assert.equal(created[0].element.textContent,'CP');
+    assert.equal(created[0].element.style.backgroundColor,'#224466');
+    assert.equal(created[0].element.classList.contains('maplibregl-marker'),true);
+    assert.equal(source.data.features.length,0);
+    let stopped=false;
+    created[0].element.events.click({stopPropagation(){stopped=true;}});
+    assert.equal(stopped,true);assert.equal(c._travelPoiId,'p');
+    assert.equal(created[0].element.classList.contains('selected'),true);
+    c._travelMapVisible=false;c._syncTravelMapSource();
+    assert.equal(created[0].removed,true);assert.equal(c._travelDomMarkers.size,0);
+  });
   await test('PDF preview has browser fallback and document move selects another folder',async()=>{
     const {c}=fixture(),panel=new Element();c.shadowRoot.getElementById=id=>id==='travel-panel'?panel:null;
     c._travelData={folders:[{id:'a',parent_id:null,name:'Reise A',kind:'trip',quota_bytes:104857600},
