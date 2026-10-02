@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0b5 — Beta: manuelle Suche voraus und Standtest
+
+- Add configurable, globally saved search profiles for chargers, places and events. The existing POI templates and travel archive continue to work independently.
+- Add a backend-only Gemini 2.5 Flash-Lite web search with a separate admin-managed API key, no background queries, no automatic paid fallback, a 15-second request cooldown and explicit free-quota errors.
+- Let a stationary user test from the vehicle or movable map center, with a compass heading or saved route destination as approximate bearing. Show up to 12 result pins, the first three in a mobile card, source links, unverified price status, travel-folder save and Google Maps handoff.
+- Exclude ungrounded results, invalid links and coordinates, locations behind the chosen direction, underpowered chargers and known prices above the configured maximum. Unknown prices remain marked as unknown. Route deviation and ad-hoc price verification are not yet available.
+- Add backend and frontend offline behavior checks. Version both Lovelace cards as `driveloom-card-0.2.0b5.js`. GitHub release `v0.2.0b5` is a prerelease; stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b4 — Beta: sichtbare eigene Reise-POIs
 
 - Render own travel POIs as interactive MapLibre DOM markers with the saved color and 1–2 character symbol, using the same marker path as the working vehicle pins. The map layer remains for search results and as a fallback when DOM markers are unavailable.

@@ -6,7 +6,7 @@ DriveLoom is an independent Home Assistant integration for vehicle analytics, GP
 
 Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
 
-The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.2.0b4.js?v=0.2.0b4` as a JavaScript module.
+The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.2.0b5.js?v=0.2.0b5` as a JavaScript module.
 
 On the map, GPS toggles live follow independently of OSM, OSM+, Topo, Satellite and 3D. Choose a style or zoom while following; a deliberate drag or another fit/track action exits live follow. With successive reliable position fixes, the map turns to keep the direction of travel at the top. The live camera uses the vehicle's current position, including a configured phone source; historical track markers do not control the camera.
 
@@ -34,7 +34,7 @@ Spatial queries merge and deduplicate vehicle-near POIs and POIs in the visible 
 
 The catalogue is a periodic location snapshot, not a source of live opening hours or charger availability. OSM data © OpenStreetMap contributors, distributed via Geofabrik under the ODbL.
 
-### Travel planning and archive (0.2.0b4 beta)
+### Travel planning and archive (0.2.0b5 beta)
 
 Open **Reisen** on the vehicle map. Create nested folders and mark travel destinations as **Reise**; folders can be renamed, moved to another parent, and given a planned, traveling or archived status. Open folders with a tap in the tree or folder list, use breadcrumbs to go back, and expand or collapse tree branches. Drag a folder onto another folder to move it on desktop; the **In Ordner verschieben** selector works on touch screens too. This folder tree is independent of recorded GPS trips. Choose a folder and show only its own POIs on the map, with an option to include descendants. **Alle eigenen Reise-POIs auf Karte zeigen** also includes unassigned own POIs, keeps their pins visible after closing the panel and temporarily hides the global template POIs. Turn it off to restore the earlier POI view. Switch to **Recherche-POIs** and select a saved global POI template to display its usual filters while planning. Save an existing map POI with **Für Reise merken**, tap **Beliebigen Kartenpunkt wählen** then the map, press and hold a map point, or enter a POI manually. A swipe cancels the long press. Select an own POI to highlight and focus it on the map at the POI detail zoom, which is also part of global templates. **Zurück zur Karte** restores the previous map camera. Edit a POI's name, category, website, phone, address and metadata; choose its map marker color and one or two letters/digits for its symbol. A valid website has a separate browser link. The main note under its address is shared wherever that POI is assigned; additional trip-specific notes remain below. A saved POI can belong to multiple folders, while the assignment selector offers own POIs not yet in the current folder. Folders also support multiple editable notes.
 
@@ -44,7 +44,15 @@ Upload PDF, images, Office files and other document types to any folder. Tap a d
 
 In `v0.2.0b4`, own POIs use visible DOM pins on the map, with their chosen color and symbol. Tap one to focus it and open its travel details.
 
-This is a beta. Create the GitHub tag `v0.2.0b4` and mark the release as a prerelease. HACS installations that opt into beta releases can select it; the attached full ZIP can also be downloaded from GitHub and unpacked manually. Restart Home Assistant after copying the files, and refresh the browser if it retains an old Lovelace card.
+### Manual search ahead (0.2.0b5 beta)
+
+Open **POIs → Suche voraus · manuell**. Save any number of search profiles for chargers, places or events (up to 30), including a query, criteria, radius, date and optional charging power/price. Select the vehicle or the movable map center as the origin, and a compass direction or saved route destination as the approximate direction. **Suche testen / jetzt suchen** works while stationary. A saved route destination determines a bearing only; this release does not compute a road corridor or driving detour.
+
+Create a Gemini API key in a Google AI Studio project on the **Free Tier without billing**, then save it in the search panel as an HA administrator. DriveLoom uses only `gemini-2.5-flash-lite` with Google Search grounding; there are no scheduled searches or paid fallback models. The API project determines whether a request is actually billed: a key from a paid project is **not** guaranteed to be free. Requests send the selected coordinates, search parameters and direction to Google. The key stays server-side in DriveLoom's main SQLite database and is never returned to the browser. A search quota or service error is shown without altering the existing POI layers. Free-tier prompts and responses may be used by Google to improve its products.
+
+Up to 12 source-linked suggestions appear on the map and in the POI panel; the compact card shows the first three. Tap a pin or row to inspect it, open its source, optionally save it to a travel folder, or open Google Maps navigation. Results last only until the map card is reloaded or explicitly cleared. Coordinates, power and ad-hoc prices are AI-supplied leads, not verified tariffs or opening/availability data; all prices are marked unverified and unknown prices remain explicit. Price limits exclude known over-limit results but do not suppress results with unknown prices. Distance is straight-line; check the route and tariff before travel.
+
+This is a beta. Create the GitHub tag `v0.2.0b5` and mark the release as a prerelease. HACS installations that opt into beta releases can select it; the attached full ZIP can also be downloaded from GitHub and unpacked manually. Restart Home Assistant after copying the files, and refresh the browser if it retains an old Lovelace card.
 
 ## Persistent data
 
