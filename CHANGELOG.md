@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b9 — Beta: sichtbare Suchtreffer und OCPDB-Zwischenspeicher
+
+- Render manual charger search results as clickable DOM markers in MapLibre; keep selection and removal in sync with the search panel.
+- Let manual search follow the chosen POI center by default, with explicit vehicle and map overrides.
+- Page through German OCPDB candidate locations instead of stopping after 5,000 records; persist complete area snapshots in a separate SQLite cache, with short availability freshness and cautious offline fallback.
+- Version the card and Lovelace resource as `driveloom-card-0.2.0b9.js`. Stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b8 — Beta: OCPDB-Ladepunkte und manuelle Suche ohne KI
 
 - OCPDB als optionale Datenquelle für deutsche Lade-POIs mit Betreiber, Stecker, Mindestleistung, eindeutig zugeordnetem Ad-hoc-Energiepreis und konservativ bewertetem Belegungsstatus. Gespeicherte Filter und GPS-Follow nutzen dieselbe Auswahl.

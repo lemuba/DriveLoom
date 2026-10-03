@@ -3,23 +3,28 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
+import sqlite3
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
+from . import ocpdb_cache
 
 BASE = "https://api.mobidata-bw.de/ocpdb/api/public/ocpi/3.0"
 SOURCES = "https://api.mobidata-bw.de/ocpdb/api/public/v1/sources"
 PAGE_SIZE = 1000
-MAX_LOCATIONS = 5000
+MAX_LOCATIONS = 100000
 STATUS_FEED_MAX_AGE = 2 * 3600
 STATUS_CHANGE_MAX_AGE = 3 * 86400
 _STATE = "ocpdb_state"
+_LOGGER = logging.getLogger(__name__)
 
 
 def _timestamp(value: Any) -> float:
@@ -176,7 +181,7 @@ def _elements(locations: list[dict[str, Any]], tariffs: dict[str, dict[str, Any]
 
 
 async def async_get_pois(hass: Any, msg: dict[str, Any]) -> dict[str, Any]:
-    """Fetch bounded live-area data; never treat a partial page set as complete."""
+    """Page through German locations and reuse complete SQLite snapshots."""
     state = hass.data.setdefault(DOMAIN, {}).setdefault(_STATE, {"lock": asyncio.Lock(), "cache": {}})
     key = (round(float(msg["latitude"]), 3), round(float(msg["longitude"]), 3), int(msg["radius_km"]),
            msg.get("connector_filter"), msg.get("min_power_kw"), msg.get("only_available"),
@@ -186,11 +191,19 @@ async def async_get_pois(hass: Any, msg: dict[str, Any]) -> dict[str, Any]:
         cached = state["cache"].get(key)
         if cached and not msg.get("force_refresh") and time.monotonic() - cached[0] < 90:
             return cached[1]
+        snapshot_key = ":".join((str(round(float(msg["latitude"]), 3)),
+                                 str(round(float(msg["longitude"]), 3)), str(int(msg["radius_km"])), "DEU"))
+        path = Path(hass.config.path(".storage", ocpdb_cache.DB_FILENAME))
+        snapshot = await hass.async_add_executor_job(ocpdb_cache.read, path, snapshot_key)
+        now = time.time()
+        max_cache_age = 90 if msg.get("only_available") else 900
+        use_snapshot = bool(snapshot and not msg.get("force_refresh")
+                            and 0 <= now - snapshot[0] < max_cache_age)
         session = async_get_clientsession(hass)
 
         async def fetch(url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=28),
-                                   headers={"Accept": "application/json", "User-Agent": "DriveLoom/0.2.0b8"}) as response:
+                                   headers={"Accept": "application/json", "User-Agent": "DriveLoom/0.2.0b9"}) as response:
                 if response.status != 200:
                     raise ValueError(f"OCPDB: HTTP {response.status}")
                 if response.content_length and response.content_length > 20_000_000:
@@ -203,8 +216,23 @@ async def async_get_pois(hass: Any, msg: dict[str, Any]) -> dict[str, Any]:
                     raise ValueError("OCPDB: ungültige Antwort")
                 return data
 
-        now = time.time()
-        async with asyncio.timeout(85):
+        truncated = False
+        warning = ""
+        if use_snapshot:
+            data = snapshot[1]
+            locations = data["locations"]
+            tariffs = data["tariffs"]
+            associations = {uid: set(ids) for uid, ids in data["associations"].items()}
+            sources = data["sources"]
+            total = data["total"]
+            age = int(now - snapshot[0])
+            if age >= 90:
+                sources = {uid: {**info, "realtime_status": "UNKNOWN"} for uid, info in sources.items()}
+            if age >= 60:
+                warning = f"OCPDB-Zwischenspeicher: Daten vor {age // 60} Minuten abgerufen."
+        else:
+          try:
+           async with asyncio.timeout(120):
             if not state.get("tariffs") or now - state.get("tariffs_at", 0) > 1800:
                 tariffs: dict[str, dict[str, Any]] = {}
                 associations: dict[str, set[str]] = {}
@@ -229,7 +257,7 @@ async def async_get_pois(hass: Any, msg: dict[str, Any]) -> dict[str, Any]:
             total = 0
             offset = 0
             params = {"lat": msg["latitude"], "lon": msg["longitude"],
-                      "radius": int(msg["radius_km"]) * 1000, "limit": PAGE_SIZE}
+                      "radius": int(msg["radius_km"]) * 1000, "country": "DEU", "limit": PAGE_SIZE}
             active_sources = [uid for uid, info in state["sources"].items()
                               if info.get("realtime_data_updated_at") and uid != "bnetza_api"]
             if active_sources:
@@ -242,10 +270,26 @@ async def async_get_pois(hass: Any, msg: dict[str, Any]) -> dict[str, Any]:
                 offset += len(page)
                 if offset >= total or not page:
                     break
-            elements = _elements(locations, state["tariffs"], state["associations"],
-                                 state["sources"], msg, time.time())
-        truncated = offset < total
-        warning = f"OCPDB: {total} Kandidaten, nur erste {offset} geprüft; Suchweite verkleinern." if truncated else ""
+            truncated = offset < total
+            if not truncated:
+                await hass.async_add_executor_job(ocpdb_cache.write, path, snapshot_key, time.time(), {
+                    "locations": locations, "tariffs": state["tariffs"],
+                    "associations": {uid: list(ids) for uid, ids in state["associations"].items()},
+                    "sources": state["sources"], "total": total,
+                })
+            tariffs, associations, sources = state["tariffs"], state["associations"], state["sources"]
+            warning = f"OCPDB: {total} Kandidaten, nur erste {offset} geprüft; Suchweite verkleinern." if truncated else ""
+          except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, OSError, sqlite3.Error) as err:
+            if not snapshot:
+                raise
+            _LOGGER.warning("OCPDB request failed, using cached locations: %s", err)
+            data = snapshot[1]
+            locations, tariffs = data["locations"], data["tariffs"]
+            associations = {uid: set(ids) for uid, ids in data["associations"].items()}
+            sources, total = data["sources"], data["total"]
+            warning = "OCPDB nicht erreichbar: gespeicherte Standorte und Preise; Belegung unbekannt."
+            sources = {uid: {**info, "realtime_status": "UNKNOWN"} for uid, info in sources.items()}
+        elements = _elements(locations, tariffs, associations, sources, msg, time.time())
         center_lat, center_lon = float(msg["latitude"]), float(msg["longitude"])
         elements.sort(key=lambda item: (item["lat"] - center_lat) ** 2
                       + ((item["lon"] - center_lon) * math.cos(math.radians(center_lat))) ** 2)

@@ -1262,6 +1262,12 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
       getSource:id=>sources[id],addSource:id=>{sources[id]={setData(value){this.data=value;}};},
       getLayer:id=>layers[id],addLayer:layer=>{layers[layer.id]=layer;},on:()=>{},
       easeTo:options=>{c.smartCamera=options;},jumpTo:options=>{c.smartReturn=options;}};
+    c._maplibreLib={Marker:class {
+      constructor({element}){this.element=element;}
+      setLngLat(point){this.position=point;return this;}
+      addTo(map){this.map=map;return this;}
+      remove(){this.removed=true;}
+    }};
     c._renderPoiPanel();
     assert.match(panel.innerHTML,/Schnelllader voraus · manuell/);
     assert.match(panel.innerHTML,/Kartenmitte/);
@@ -1277,14 +1283,19 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.equal(called.length,1);assert.equal(called[0].type,'driveloom/smart_search/run');
     assert.equal(called[0].latitude,53.8);assert.equal(called[0].longitude,9.8);assert.equal(called[0].bearing,180);
     assert.equal(called[0].profile.price_mode,'max');
-    assert.equal(sources['driveloom-smart'].data.features.length,1);
+    assert.equal(c._smartDomMarkers.size,1);
+    assert.deepEqual(Array.from(c._smartDomMarkers.get('smart:ocpdb:1').marker.position),[9.8,53.9]);
     assert.match(panel.innerHTML,/OCPDB/);
     assert.match(chip.innerHTML,/Testlader/);assert.match(chip.innerHTML,/0.49 €\/kWh Ad-hoc/);
     c._smartInspect(c._smartResults[0]);
+    assert.ok(c._smartDomMarkers.get('smart:ocpdb:1').element.classList.contains('selected'));
     assert.deepEqual(Array.from(c.smartCamera.center),[9.8,53.9]);
     assert.match(chip.innerHTML,/Google Maps öffnen/);
     assert.match(chip.innerHTML,/OCPDB-Daten/);
     assert.equal(c._smartResults[0].sourceLabel,'OCPDB · MobiData BW');
+    const marker=c._smartDomMarkers.get('smart:ocpdb:1').marker;
+    c._smartResults=[];c._syncSmartMapSource();
+    assert.equal(c._smartDomMarkers.size,0);assert.equal(marker.removed,true);
   });
   await test('OCPDB POI filters persist in presets and select only matching live chargers',async()=>{
     const {c}=fixture();
