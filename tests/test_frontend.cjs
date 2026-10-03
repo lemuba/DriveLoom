@@ -1251,51 +1251,43 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.equal(calls[0].payload.metadata.marker_color,'#335577');
     assert.equal(calls[1].payload.body,'Ruhiger Platz am Meer');
   });
-  await test('manual OCPDB search supports a stationary map center and source-linked pins',async()=>{
-    const {c}=fixture(), panel=new Element(), chip=new Element(), poiAhead=new Element();
-    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='smart-ahead'?chip:id==='poi-ahead'?poiAhead:null;
-    c._smartLoaded=true;c._smartOpen=true;
-    c._smartProfiles={starter:{...c._smartDraft}};
-    c._center={lat:53.8,lon:9.8};c._smartOrigin='map';c._smartDirection='180';
-    const sources={},layers={};
-    c._vectorMap={getCenter:()=>({lat:53.8,lng:9.8}),getZoom:()=>12,getBearing:()=>0,
-      getSource:id=>sources[id],addSource:id=>{sources[id]={setData(value){this.data=value;}};},
-      getLayer:id=>layers[id],addLayer:layer=>{layers[layer.id]=layer;},on:()=>{},
-      easeTo:options=>{c.smartCamera=options;},jumpTo:options=>{c.smartReturn=options;}};
-    c._maplibreLib={Marker:class {
-      constructor({element}){this.element=element;}
-      setLngLat(point){this.position=point;return this;}
-      addTo(map){this.map=map;return this;}
-      remove(){this.removed=true;}
-    }};
+  await test('one POI menu previews chosen direction from map center and shows operator first',async()=>{
+    const {c}=fixture(),panel=new Element(),chip=new Element(),popup=new Element();
+    c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='poi-ahead'?chip:id==='poi-popup'?popup:null;
+    c._center={lat:53.8,lon:9.8};c._syncPoiMapSource=()=>{};
+    c._vectorMap={getCenter:()=>({lat:c._center.lat,lng:c._center.lon}),getZoom:()=>12,getBearing:()=>0,easeTo:()=>{}};
+    c._poiCenterMode='map';c._poiCategories=new Set(['charging']);c._poiRadiusKm=25;
+    c._poiSourceCenterKey='map:53.8,9.8';
+    c._vehicles=()=>[{deviceId:'live',valid:true,lat:54.5,lon:9.8}];
+    c._poiResults=[
+      {id:'north',name:'DE*VAT*ET184*IT1*1623*034*1',operator:'Vattenfall InCharge',city:'Henstedt-Ulzburg',
+        address:'Nordstedter Str. 120, 24558 Henstedt-Ulzburg',category:'charging',provider:'ocpdb',lat:53.9,lon:9.8,priceEurKwh:0.49,freeCount:2},
+      {id:'south',name:'DC-14046-04',operator:'Stadtwerke Kiel',city:'Wasbek',
+        address:'Hauptstraße 32, 24647 Wasbek',category:'charging',provider:'ocpdb',lat:53.7,lon:9.8,priceEurKwh:0.58,freeCount:3},
+    ];
     c._renderPoiPanel();
-    assert.match(panel.innerHTML,/Schnelllader voraus · manuell/);
-    assert.match(panel.innerHTML,/Kartenmitte/);
-    assert.doesNotMatch(panel.innerHTML,/API-Schlüssel|Tavily|Gemini|KI-Recherche/);
-    for (const [field,value] of Object.entries({radius:'100',power:'100',price:'0.59','price-mode':'max',
-      origin:'map',direction:'180'})) panel.querySelector('#smart-'+field).value=value;
-    const called=[];
-    c._hass.callWS=async request=>{called.push(request);return {places:[{id:'smart:ocpdb:1',name:'Testlader',lat:53.9,lon:9.8,
-      distance_km:11.1,power_kw:150,price_eur_kwh:0.49,free_count:2,source_url:'https://example.org/price',source_attested:true}],
-      model:'ocpdb',checked_at:'2026-10-02T18:00:00Z'};};
-    assert.ok(panel.querySelector('#smart-run'));
-    await c._smartRun(panel);
-    assert.equal(called.length,1);assert.equal(called[0].type,'driveloom/smart_search/run');
-    assert.equal(called[0].latitude,53.8);assert.equal(called[0].longitude,9.8);assert.equal(called[0].bearing,180);
-    assert.equal(called[0].profile.price_mode,'max');
-    assert.equal(c._smartDomMarkers.size,1);
-    assert.deepEqual(Array.from(c._smartDomMarkers.get('smart:ocpdb:1').marker.position),[9.8,53.9]);
-    assert.match(panel.innerHTML,/OCPDB/);
-    assert.match(chip.innerHTML,/Testlader/);assert.match(chip.innerHTML,/0.49 €\/kWh Ad-hoc/);
-    c._smartInspect(c._smartResults[0]);
-    assert.ok(c._smartDomMarkers.get('smart:ocpdb:1').element.classList.contains('selected'));
-    assert.deepEqual(Array.from(c.smartCamera.center),[9.8,53.9]);
-    assert.match(chip.innerHTML,/Google Maps öffnen/);
-    assert.match(chip.innerHTML,/OCPDB-Daten/);
-    assert.equal(c._smartResults[0].sourceLabel,'OCPDB · MobiData BW');
-    const marker=c._smartDomMarkers.get('smart:ocpdb:1').marker;
-    c._smartResults=[];c._syncSmartMapSource();
-    assert.equal(c._smartDomMarkers.size,0);assert.equal(marker.removed,true);
+    assert.equal(panel.querySelector('#smart-section'),null);
+    assert.doesNotMatch(panel.innerHTML,/Schnelllader voraus · manuell/);
+    assert.ok(panel.querySelector('#poi-ahead-preview'));
+    const direction=panel.querySelector('#poi-preview-direction');assert.ok(direction);
+    direction.value='0';direction.events.change({target:direction});
+    assert.equal(c._poiAheadCandidates(true).map(item=>item.poi.id).join(','),'north');
+    assert.ok(c._poiAheadCandidates(true)[0].distance<12); // From map, not the distant vehicle.
+    panel.querySelector('#poi-ahead-preview').click();
+    assert.match(chip.innerHTML,/<strong class="poi-ahead-name">Vattenfall InCharge<\/strong>/);
+    assert.match(chip.innerHTML,/<span class="poi-ahead-location">Henstedt-Ulzburg<\/span>/);
+    assert.doesNotMatch(chip.innerHTML,/DE\*VAT/);
+    c._showPoiPopup('north',false);
+    assert.match(popup.innerHTML,/<strong><ha-icon[^>]*><\/ha-icon>Vattenfall InCharge<\/strong>/);
+    assert.match(popup.innerHTML,/Nordstedter Str. 120, 24558 Henstedt-Ulzburg/);
+    assert.match(popup.innerHTML,/Kennung: DE\*VAT/);
+    chip.querySelector('[data-poi-ahead-id="north"]').click();
+    assert.equal(c._center.lat,53.9);
+    assert.match(chip.innerHTML,/11,1 km Luftlinie/); // Inspector retains map origin after camera focus.
+    assert.match(chip.innerHTML,/Vattenfall InCharge/);
+    assert.equal(c._poiDisplayName(c._poiResults[1]),'Stadtwerke Kiel');
+    assert.equal(c._poiDisplayName({name:'DE*VAT*ET184*IT1*1623*034*1',category:'charging'}),'Ladestation');
+    assert.equal(c._poiDisplayName({name:'McDonald’s',operator:'McDonald’s',category:'fast_food'}),'McDonald’s');
   });
   await test('OCPDB POI filters persist in presets and select only matching live chargers',async()=>{
     const {c}=fixture();

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b10 — Beta: einheitliches POI-Panel und lesbare Ladepunkte
+
+- Remove the redundant upper manual charger search panel; use the saved filters and stationary POI preview in the lower POI panel. Existing search profiles are retained in storage.
+- Let the stationary preview use the chosen vehicle or map center, with all directions, a compass direction, or the route destination as a bearing. Keep live GPS heading behavior intact.
+- Put the charging operator first in bold in ahead rows and POI details, show city/address when available, and move technical station identifiers to secondary details.
+- Version the Lovelace resource as `driveloom-card-0.2.0b10.js`. Stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b9 — Beta: sichtbare Suchtreffer und OCPDB-Zwischenspeicher
 
 - Render manual charger search results as clickable DOM markers in MapLibre; keep selection and removal in sync with the search panel.
