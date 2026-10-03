@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0b8 — Beta: OCPDB-Ladepunkte und manuelle Suche ohne KI
+
+- OCPDB als optionale Datenquelle für deutsche Lade-POIs mit Betreiber, Stecker, Mindestleistung, eindeutig zugeordnetem Ad-hoc-Energiepreis und konservativ bewertetem Belegungsstatus. Gespeicherte Filter und GPS-Follow nutzen dieselbe Auswahl.
+- Manuelle Suche voraus und Standtest direkt über OCPDB mit Radius, Richtung, CCS-Leistung, Preis- und Verfügbarkeitsfilter; Google-Maps-Übergabe. Keine KI- oder Tavily-Abfrage.
+- Remove the Gemini and Tavily API key UI and network clients; delete previously saved DriveLoom search keys during setup.
+- Distinguish OCM operator and station links in charging POIs; retain the explicitly marked Öschlesee third-party station link. Version the resource `driveloom-card-0.2.0b8.js`; stable `v0.1.14` remains untouched.
+
+## 0.2.0b6 — Beta: Modellzugriff und lokale Schnelllader
+
+- Explain the HTTP 404 from Gemini 2.5 Flash-Lite for projects without access to this model instead of reporting a generic unavailable search service.
+- Offer a manual Open Charge Map charger search without a Gemini key. On a Gemini model 404, charger searches use the same OCM fallback automatically, while place and event searches show the limitation.
+- Filter local stations by direction, radius and explicit CCS charging power. Their ad-hoc prices remain unknown; maximum price and arbitrary text criteria are not evaluated. Never switch to a paid model.
+- Update the map resource to `driveloom-card-0.2.0b6.js` and add offline checks for the 404 and local charger normalization. Stable `v0.1.14` remains unchanged.
+
 ## 0.2.0b5 — Beta: manuelle Suche voraus und Standtest
 
 - Add configurable, globally saved search profiles for chargers, places and events. The existing POI templates and travel archive continue to work independently.

@@ -57,7 +57,7 @@ const timeouts = new Set();
 const document = {hidden:false, body:{appendChild(){}}, createElement:()=>new Element()};
 const context = vm.createContext({
   console, Date:ClockDate, Intl, Map, Set, Math, Number, String, Boolean, Array, Object, JSON,
-  Blob, URL:{createObjectURL:()=> 'blob:test', revokeObjectURL(){}},
+  Blob, URL:Object.assign(URL, {createObjectURL:()=> 'blob:test', revokeObjectURL(){}}),
   CSS:{escape:s=>s}, navigator:{language:'de-DE'}, document,
   window:{customCards:[],matchMedia:()=>({matches:false}),confirm:()=>true},
   localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
@@ -673,6 +673,22 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._poiGlobalTemplates={'custom:near':{name:'Near',categories:['charging'],radiusKm:5,detailZoom:15}};
     c._applyPoiTemplate('custom:near');assert.equal(c._poiDetailZoom,15);
   });
+  await test('charger detail shows verified operator and distinct station links without implying live prices',async()=>{
+    const {c}=fixture();const chip=new Element();
+    const poi={id:'sulzberg',name:'Ö_LP_Öschlesee',category:'charging',operator:'Präg Strom & Gas GmbH & Co. KG',
+      lat:47.680945,lon:10.330799,operatorWebsite:'https://praeg.example/info',
+      stationWebsite:'https://station.example/oe-schlesee',website:'https://praeg.example/info'};
+    c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
+    c._mode='gps';c._poiAheadInspect={poi,preview:false};c._vehicles=()=>[];
+    c._renderPoiAhead();
+    assert.match(chip.innerHTML,/href="https:\/\/praeg.example\/info"[^>]*>Betreiberseite<\/a>/);
+    assert.match(chip.innerHTML,/href="https:\/\/station.example\/oe-schlesee"[^>]*>Stationsseite<\/a>/);
+    assert.match(chip.innerHTML,/e-stations.de\/ladestationen\/sulzberg\/oe-lp-oeschlesee-6413/);
+    assert.match(chip.innerHTML,/Drittanbieter \(09\/2026\)/);
+    assert.equal((chip.innerHTML.match(/praeg.example\/info/g)||[]).length,1);
+    const unknown={...poi,id:'elsewhere',lat:48,lon:11,operator:'Other',operatorWebsite:'javascript:alert(1)',stationWebsite:'',website:''};
+    assert.equal(c._chargingWebLinks(unknown).length,0);
+  });
   await test('compact POI preset switch waits for the new data and uses the vehicle center',async()=>{
     const {c}=fixture();const chip=new Element();
     c.shadowRoot.getElementById=id=>id==='poi-ahead'?chip:null;
@@ -1235,10 +1251,10 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     assert.equal(calls[0].payload.metadata.marker_color,'#335577');
     assert.equal(calls[1].payload.body,'Ruhiger Platz am Meer');
   });
-  await test('manual smart search supports a stationary map center and renders selectable source-linked pins',async()=>{
+  await test('manual OCPDB search supports a stationary map center and source-linked pins',async()=>{
     const {c}=fixture(), panel=new Element(), chip=new Element(), poiAhead=new Element();
     c.shadowRoot.getElementById=id=>id==='poi-panel'?panel:id==='smart-ahead'?chip:id==='poi-ahead'?poiAhead:null;
-    c._smartConfigured=true;c._smartLoaded=true;c._smartOpen=true;
+    c._smartLoaded=true;c._smartOpen=true;
     c._smartProfiles={starter:{...c._smartDraft}};
     c._center={lat:53.8,lon:9.8};c._smartOrigin='map';c._smartDirection='180';
     const sources={},layers={};
@@ -1247,24 +1263,51 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
       getLayer:id=>layers[id],addLayer:layer=>{layers[layer.id]=layer;},on:()=>{},
       easeTo:options=>{c.smartCamera=options;},jumpTo:options=>{c.smartReturn=options;}};
     c._renderPoiPanel();
-    assert.match(panel.innerHTML,/Suche voraus · manuell/);
+    assert.match(panel.innerHTML,/Schnelllader voraus · manuell/);
     assert.match(panel.innerHTML,/Kartenmitte/);
-    for (const [field,value] of Object.entries({kind:'charging',radius:'100',power:'100',price:'0.59',
-      origin:'map',direction:'180',date:'',criteria:''})) panel.querySelector('#smart-'+field).value=value;
+    assert.doesNotMatch(panel.innerHTML,/API-Schlüssel|Tavily|Gemini|KI-Recherche/);
+    for (const [field,value] of Object.entries({radius:'100',power:'100',price:'0.59','price-mode':'max',
+      origin:'map',direction:'180'})) panel.querySelector('#smart-'+field).value=value;
     const called=[];
-    c._hass.callWS=async request=>{called.push(request);return {places:[{id:'smart:1',name:'Testlader',lat:53.9,lon:9.8,
-      distance_km:11.1,power_kw:150,price_eur_kwh:0.49,source_url:'https://example.org/price',source_attested:true}],
-      sources:['https://example.org/price'],checked_at:'2026-10-02T18:00:00Z'};};
+    c._hass.callWS=async request=>{called.push(request);return {places:[{id:'smart:ocpdb:1',name:'Testlader',lat:53.9,lon:9.8,
+      distance_km:11.1,power_kw:150,price_eur_kwh:0.49,free_count:2,source_url:'https://example.org/price',source_attested:true}],
+      model:'ocpdb',checked_at:'2026-10-02T18:00:00Z'};};
     assert.ok(panel.querySelector('#smart-run'));
     await c._smartRun(panel);
     assert.equal(called.length,1);assert.equal(called[0].type,'driveloom/smart_search/run');
     assert.equal(called[0].latitude,53.8);assert.equal(called[0].longitude,9.8);assert.equal(called[0].bearing,180);
+    assert.equal(called[0].profile.price_mode,'max');
     assert.equal(sources['driveloom-smart'].data.features.length,1);
-    assert.match(chip.innerHTML,/Testlader/);assert.match(chip.innerHTML,/Preis nicht bestätigt/);
+    assert.match(panel.innerHTML,/OCPDB/);
+    assert.match(chip.innerHTML,/Testlader/);assert.match(chip.innerHTML,/0.49 €\/kWh Ad-hoc/);
     c._smartInspect(c._smartResults[0]);
     assert.deepEqual(Array.from(c.smartCamera.center),[9.8,53.9]);
     assert.match(chip.innerHTML,/Google Maps öffnen/);
-    assert.match(chip.innerHTML,/Quelle/);
+    assert.match(chip.innerHTML,/OCPDB-Daten/);
+    assert.equal(c._smartResults[0].sourceLabel,'OCPDB · MobiData BW');
+  });
+  await test('OCPDB POI filters persist in presets and select only matching live chargers',async()=>{
+    const {c}=fixture();
+    c._poiCategories=new Set(['charging']);
+    c._poiChargingSource='ocpdb';c._poiConnector='ccs';c._poiMinPowerKw=150;
+    c._poiOnlyAvailable=true;c._poiMinFree=2;c._poiPriceMode='max';c._poiMaxPriceEur=0.60;
+    const center={mode:'vehicle',lat:53.8,lon:9.8,key:'vehicle',label:'Test'};
+    const request=c._poiRequestSnapshot(center);
+    assert.equal(request.chargingSource,'ocpdb');assert.equal(request.minPowerKw,150);
+    assert.equal(request.maxPriceEur,0.60);assert.equal(request.onlyAvailable,true);
+    c._poiRawResults=[
+      {id:'cheap',provider:'ocpdb',category:'charging',connectorKeys:['ccs'],maxPowerKw:320,availability:'available',freeCount:2,priceEurKwh:0.57},
+      {id:'busy',provider:'ocpdb',category:'charging',connectorKeys:['ccs'],maxPowerKw:320,availability:'occupied',freeCount:0,priceEurKwh:0.49},
+      {id:'unknown',provider:'ocpdb',category:'charging',connectorKeys:['ccs'],maxPowerKw:320,availability:'available',freeCount:2,priceEurKwh:null},
+      {id:'slow',provider:'ocpdb',category:'charging',connectorKeys:['ccs'],maxPowerKw:100,availability:'available',freeCount:2,priceEurKwh:0.29},
+      {id:'ocm',provider:'ocm',category:'charging',connectorKeys:['ccs'],maxPowerKw:320,availability:'available',freeCount:2,priceEurKwh:0.40},
+    ];
+    c._applyPoiClientFilters();assert.deepEqual(c._poiResults.map(item=>item.id),['cheap']);
+    const saved=c._snapshotPoiFilter('Günstig');
+    c._poiGlobalTemplates={'custom:cheap':saved};
+    c._poiChargingSource='ocm';c._poiPriceMode='any';
+    c._applyPoiTemplate('custom:cheap');
+    assert.equal(c._poiChargingSource,'ocpdb');assert.equal(c._poiPriceMode,'max');
   });
   console.log(`${checks} frontend behavior tests passed. Browser layout and real HA still require manual verification.`);
 })().catch(err=>{console.error(err);process.exitCode=1;});

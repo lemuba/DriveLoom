@@ -38,7 +38,7 @@ from .route_data import async_register_websocket as async_register_route_websock
 from .analytics_repair import async_register_websocket as async_register_analytics_repair_websocket
 from .preferences import async_register_websocket as async_register_preferences_websocket
 from .travel import async_register_websocket as async_register_travel_websocket
-from .smart_search import async_register_websocket as async_register_smart_search_websocket
+from .smart_search import async_register_websocket as async_register_smart_search_websocket, async_remove_legacy_ai_keys
 from .tracking import (
     async_register_websocket as async_register_tracking_websocket,
     async_setup_tracking,
@@ -48,8 +48,8 @@ from .tracking import (
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_URL = "/driveloom"
-FRONTEND_CARD_PATH = f"{FRONTEND_URL}/driveloom-card-0.2.0b5.js"
-FRONTEND_MODULE = f"{FRONTEND_CARD_PATH}?v=0.2.0b5"
+FRONTEND_CARD_PATH = f"{FRONTEND_URL}/driveloom-card-0.2.0b8.js"
+FRONTEND_MODULE = f"{FRONTEND_CARD_PATH}?v=0.2.0b8"
 FRONTEND_CARD_PREFIX = f"{FRONTEND_URL}/driveloom-card"
 DATA_FRONTEND_REGISTERED = "frontend_registered"
 
@@ -143,6 +143,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     async_register_preferences_websocket(hass)
     async_register_travel_websocket(hass)
     async_register_smart_search_websocket(hass)
+    try:
+        await async_remove_legacy_ai_keys(hass)
+    except Exception:
+        _LOGGER.exception("Could not remove legacy AI keys from DriveLoom search storage")
     async_register_tracking_websocket(hass)
     try:
         await async_setup_tracking(hass)

@@ -1689,6 +1689,8 @@ def _ocm_station_to_element(
         "addr:country": country.get("ISOCode") or country.get("Title") or "",
         "phone": address.get("ContactTelephone1") or operator_info.get("PhonePrimaryContact") or "",
         "website": operator_info.get("WebsiteURL") or address.get("RelatedURL") or "",
+        "driveloom:operator_website": operator_info.get("WebsiteURL") or "",
+        "driveloom:station_website": address.get("RelatedURL") or "",
         "capacity": station.get("NumberOfPoints") or "",
         "access": usage.get("Title") or "",
         "driveloom:provider": "ocm",
@@ -2159,6 +2161,29 @@ async def _async_network_query(hass: HomeAssistant, msg: dict[str, Any]) -> dict
 
 
 async def _async_get_pois(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str, Any]:
+    if msg.get("charging_source") == "ocpdb" and "charging" in msg["categories"]:
+        from .ocpdb import async_get_pois as get_ocpdb_pois
+
+        if not math.isfinite(float(msg.get("max_price_eur", 0) or 0)):
+            raise ValueError("OCPDB-Höchstpreis muss endlich sein")
+        if msg.get("price_mode") == "max" and float(msg.get("max_price_eur", 0) or 0) <= 0:
+            raise ValueError("Für den OCPDB-Höchstpreis einen Betrag größer null eingeben")
+
+        charging = await get_ocpdb_pois(hass, msg)
+        other_categories = [key for key in msg["categories"] if key != "charging"]
+        if not other_categories:
+            return charging
+        general = await _async_get_pois(hass, {**msg, "categories": other_categories})
+        general["elements"] = general["elements"] + charging["elements"]
+        general["elements"].sort(key=lambda item: _haversine_m(
+            float(msg["latitude"]), float(msg["longitude"]), *_element_coords(item)
+        ) if _element_coords(item) else float("inf"))
+        general["elements"] = general["elements"][:int(msg["max_results"])]
+        general["sources"] = general.get("sources", []) + charging["sources"]
+        general["warnings"] = general.get("warnings", []) + charging["warnings"]
+        general["charging_status"] = charging["charging_status"]
+        general["candidate_limit_hit"] = general.get("candidate_limit_hit", False) or charging["candidate_limit_hit"]
+        return general
     # The regional catalogue is shared by all saved presets; switching one
     # changes only filters, never downloads the region again.
     if any(key != "charging" for key in msg["categories"]):
@@ -2275,6 +2300,11 @@ async def _async_get_pois(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str,
         ),
         vol.Optional("min_power_kw", default=0): vol.In([0, 50, 100, 150, 200, 300, 350]),
         vol.Optional("include_unknown_power", default=True): vol.Coerce(bool),
+        vol.Optional("charging_source", default="ocm"): vol.In(["ocm", "ocpdb"]),
+        vol.Optional("only_available", default=False): vol.Coerce(bool),
+        vol.Optional("min_free", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
+        vol.Optional("price_mode", default="any"): vol.In(["any", "known", "max"]),
+        vol.Optional("max_price_eur", default=0): vol.All(vol.Coerce(float), vol.Range(min=0, max=3)),
         vol.Optional("force_refresh", default=False): vol.Coerce(bool),
         vol.Optional("viewport"): vol.All(
             [vol.Coerce(float)], vol.Length(min=4, max=4)
