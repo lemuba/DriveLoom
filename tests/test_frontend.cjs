@@ -851,6 +851,7 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     let sent;c._hass.callWS=async req=>{sent=req;return {};};c._loadTrackingStatus=async()=>{};
     await panel.querySelector('[data-auto-save="one"]').click();
     assert.equal(sent.action,'auto_save');assert.equal(sent.data.ssid,'BMWi39000 CarPlay');
+    assert.equal(sent.data.trigger_type,'ssid');
     assert.equal(sent.data.ssid_entity,'sensor.iphone_matprivat_ssid');
     assert.equal(sent.data.notify_service,'notify.mobile_app_iphone_matprivat');
     assert.equal(sent.data.location_interval,10);
@@ -859,6 +860,27 @@ async function test(name, fn){await fn();checks++;console.log('PASS',name);}
     c._trackingStatus.auto_rules.one.location_interval=10;c._renderTrackingPanel();
     assert.match(panel.innerHTML,/value="compact" selected/);
     assert.match(panel.innerHTML,/value="10" selected/);
+  });
+  await test('binary sensor trigger changes visible fields and saves an on/off rule',async()=>{
+    const {c,panel}=fixture();c._hass.user={is_admin:true};
+    c._hass.states['binary_sensor.car_connected']={state:'on'};
+    c._trackingStatus.sources=[{id:'phone',name:'iPhone',entity_id:'sensor.phone',vehicles:['one']}];
+    c._trackingStatus.auto_rules={one:{source_id:'phone',trigger_type:'binary_sensor',binary_entity:'binary_sensor.car_connected'}};
+    c._trackingStatus.vehicles[0].session={active:true,mode:'auto',suspended:true,source_id:'phone'};
+    c._gpsManage=true;c._renderTrackingPanel();
+    assert.match(panel.innerHTML,/Binärsensor aus – Aufzeichnung pausiert/);
+    assert.match(panel.innerHTML,/binary_sensor\.car_connected/);
+    assert.match(panel.innerHTML,/<datalist id="auto-binary-sensors">/);
+    const trigger=panel.querySelector('[data-auto-trigger="one"]');
+    trigger.value='ssid';trigger.events.change();
+    assert.ok(panel.querySelector('[data-auto-binary-fields="one"]').classList.contains('hidden'));
+    assert.ok(!panel.querySelector('[data-auto-ssid-fields="one"]').classList.contains('hidden'));
+    trigger.value='binary_sensor';trigger.events.change();
+    assert.ok(!panel.querySelector('[data-auto-binary-fields="one"]').classList.contains('hidden'));
+    let sent;c._hass.callWS=async req=>{sent=req;return {};};c._loadTrackingStatus=async()=>{};
+    await panel.querySelector('[data-auto-save="one"]').click();
+    assert.equal(sent.data.trigger_type,'binary_sensor');
+    assert.equal(sent.data.binary_entity,'binary_sensor.car_connected');
   });
   await test('folder selection displays only assigned historical trips and preserves other views',async()=>{
     const {c,panel,sources,data}=fixture();c._hass.user={is_admin:true};

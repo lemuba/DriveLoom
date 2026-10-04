@@ -128,8 +128,10 @@ class GPSSourcesMixin:
         if action == "auto_save":
             entry_id = data.get("entry_id")
             source_id = data.get("source_id")
-            sensor = str(data.get("ssid_entity", ""))
+            trigger_type = str(data.get("trigger_type", "ssid"))
+            sensor = str(data.get("ssid_entity", "")).strip()
             ssid = str(data.get("ssid", "")).strip()
+            binary_entity = str(data.get("binary_entity", "")).strip()
             notify_service = str(data.get("notify_service", "")).strip()
             try:
                 interval = int(data.get("location_interval", 0))
@@ -147,15 +149,29 @@ class GPSSourcesMixin:
                 raise ValueError("Select a mobile app notification action")
             if entry_id not in self._entries or source_id not in self._sources or entry_id not in self._sources[source_id]["vehicles"]:
                 raise ValueError("GPS source is not assigned to this vehicle")
-            if not sensor.startswith("sensor.") or self.hass.states.get(sensor) is None or not ssid or len(ssid) > 100:
-                raise ValueError("Select an existing SSID sensor and a Wi-Fi network name")
-            if any(v != entry_id and r["ssid_entity"] == sensor and r["ssid"] == ssid for v, r in self._auto_rules.items()):
-                raise ValueError("This SSID already starts another vehicle")
+            if trigger_type == "ssid":
+                if not sensor.startswith("sensor.") or self.hass.states.get(sensor) is None or not ssid or len(ssid) > 100:
+                    raise ValueError("Select an existing SSID sensor and a Wi-Fi network name")
+                if any(v != entry_id and r.get("trigger_type", "ssid") == "ssid"
+                       and r.get("ssid_entity") == sensor and r.get("ssid") == ssid
+                       for v, r in self._auto_rules.items()):
+                    raise ValueError("This SSID already starts another vehicle")
+            elif trigger_type == "binary_sensor":
+                if not binary_entity.startswith("binary_sensor.") or self.hass.states.get(binary_entity) is None:
+                    raise ValueError("Select an existing binary sensor")
+                if any(v != entry_id and r.get("trigger_type") == "binary_sensor"
+                       and r.get("binary_entity") == binary_entity for v, r in self._auto_rules.items()):
+                    raise ValueError("This binary sensor already starts another vehicle")
+            else:
+                raise ValueError("Select a supported automatic start trigger")
             if self._sessions.get(entry_id, {}).get("active") and self._sessions[entry_id].get("mode") == "auto":
                 raise ValueError("End the active automatic trip before changing its rule")
-            self._auto_rules[entry_id] = {"source_id": source_id, "ssid_entity": sensor, "ssid": ssid, "blocked": False,
-                                          "notify_service": notify_service, "location_interval": interval,
-                                          "point_filter": point_filter}
+            self._auto_rules[entry_id] = {"source_id": source_id, "trigger_type": trigger_type,
+                                          "ssid_entity": sensor if trigger_type == "ssid" else "",
+                                          "ssid": ssid if trigger_type == "ssid" else "",
+                                          "binary_entity": binary_entity if trigger_type == "binary_sensor" else "",
+                                          "blocked": False, "notify_service": notify_service,
+                                          "location_interval": interval, "point_filter": point_filter}
             return {}
         if action == "auto_delete":
             entry_id = data.get("entry_id")
@@ -216,9 +232,18 @@ class GPSSourcesMixin:
                                     "started": dt_util.utcnow().timestamp(), "last_fix": self._sessions.get(entry_id, {}).get("last_fix")}
         return {"waiting": self._source_fix(source) is None}
 
+    def _auto_trigger_entity(self, rule):
+        return rule.get("binary_entity") if rule.get("trigger_type", "ssid") == "binary_sensor" else rule.get("ssid_entity")
+
     def _auto_connected(self, rule):
-        state = self.hass.states.get(rule["ssid_entity"]) if rule else None
-        return bool(rule) and state is not None and state.state == rule["ssid"]
+        if not rule:
+            return False
+        state = self.hass.states.get(self._auto_trigger_entity(rule))
+        if state is None:
+            return False
+        if rule.get("trigger_type", "ssid") == "binary_sensor":
+            return state.state == "on"
+        return state.state == rule.get("ssid")
 
     def _cancel_auto_timer(self, entry_id):
         task = self._auto_timers.pop(entry_id, None)
@@ -279,7 +304,7 @@ class GPSSourcesMixin:
 
     async def _request_final_fix(self, entry_id, token, service):
         try:
-            # Give the phone a moment to leave CarPlay Wi-Fi and regain data connectivity.
+            # Give the phone a moment to regain data connectivity after the trigger turns off.
             await asyncio.sleep(2)
             session = self._sessions.get(entry_id, {})
             if session.get("token") == token and session.get("active") and session.get("suspended"):
@@ -304,7 +329,9 @@ class GPSSourcesMixin:
         def changed(event):
             self.hass.async_create_task(self._reconcile_auto(entry_id))
 
-        self._auto_unsubs[entry_id] = async_track_state_change_event(self.hass, [rule["ssid_entity"]], changed)
+        trigger_entity = self._auto_trigger_entity(rule)
+        if trigger_entity:
+            self._auto_unsubs[entry_id] = async_track_state_change_event(self.hass, [trigger_entity], changed)
 
     async def _reconcile_auto(self, entry_id):
         rule = self._auto_rules.get(entry_id)

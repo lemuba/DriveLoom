@@ -140,6 +140,45 @@ class SourceTests(unittest.IsolatedAsyncioTestCase):
             await self.manager.async_source_action('save', {'name':'Same phone','entity_id':'sensor.phone','vehicles':['b']})
         self.assertEqual(len(self.manager._sources),1)
 
+    async def test_binary_sensor_auto_trigger_and_legacy_ssid(self):
+        self.hass.states['binary_sensor.car_connected'] = state('off', NOW)
+        self.hass.states['sensor.car_ssid'] = state('CarPlay', NOW)
+        legacy = {'source_id': self.source_id, 'ssid_entity': 'sensor.car_ssid', 'ssid': 'CarPlay'}
+        self.assertTrue(self.manager._auto_connected(legacy))
+        self.assertEqual(self.manager._auto_trigger_entity(legacy), 'sensor.car_ssid')
+        payload = {'entry_id': 'a', 'source_id': self.source_id, 'trigger_type': 'binary_sensor',
+                   'binary_entity': 'binary_sensor.car_connected'}
+        await self.manager.async_source_action('auto_save', payload)
+        rule = self.manager._auto_rules['a']
+        self.assertEqual(self.manager._auto_trigger_entity(rule), 'binary_sensor.car_connected')
+        self.assertFalse(self.manager._auto_connected(rule))
+        self.assertEqual(self.manager._load_sources_db()['auto_rules']['a']['trigger_type'], 'binary_sensor')
+        with self.assertRaises(ValueError):
+            await self.manager.async_source_action('auto_save', {**payload, 'binary_entity': 'sensor.car_ssid'})
+        with self.assertRaises(ValueError):
+            await self.manager.async_source_action('auto_save', {**payload, 'binary_entity': 'binary_sensor.missing'})
+        with self.assertRaises(ValueError):
+            await self.manager.async_source_action('auto_save', {**payload, 'entry_id': 'b'})
+        self.hass.states['binary_sensor.car_connected'] = state('on', NOW)
+        await self.manager._reconcile_auto('a')
+        self.assertTrue(self.manager._sessions['a']['active'])
+        self.assertEqual(self.manager._sessions['a']['mode'], 'auto')
+        self.hass.states['binary_sensor.car_connected'] = state('off', NOW)
+        await self.manager._reconcile_auto('a')
+        self.assertTrue(self.manager._sessions['a']['suspended'])
+        self.hass.states['binary_sensor.car_connected'] = state('unknown', NOW)
+        self.assertFalse(self.manager._auto_connected(rule))
+        self.hass.states['binary_sensor.car_connected'] = state('on', NOW)
+        await self.manager._reconcile_auto('a')
+        self.assertFalse(self.manager._sessions['a']['suspended'])
+        await self.manager.async_source_action('stop', {'entry_id': 'a'})
+        self.assertTrue(rule['blocked'])
+        await self.manager._reconcile_auto('a')
+        self.assertFalse(self.manager._sessions['a']['active'])
+        self.hass.states['binary_sensor.car_connected'] = state('off', NOW)
+        await self.manager._reconcile_auto('a')
+        self.assertFalse(rule['blocked'])
+
     async def test_failed_save_rolls_back_and_stop_serializes_with_recording(self):
         from unittest.mock import patch
         with patch.object(self.manager, '_save_sources_db', side_effect=OSError('disk full')):

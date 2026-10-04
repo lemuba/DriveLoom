@@ -203,7 +203,7 @@ async def async_get_pois(hass: Any, msg: dict[str, Any]) -> dict[str, Any]:
 
         async def fetch(url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=28),
-                                   headers={"Accept": "application/json", "User-Agent": "DriveLoom/0.2.0b11"}) as response:
+                                   headers={"Accept": "application/json", "User-Agent": "DriveLoom/0.2.0"}) as response:
                 if response.status != 200:
                     raise ValueError(f"OCPDB: HTTP {response.status}")
                 if response.content_length and response.content_length > 20_000_000:
