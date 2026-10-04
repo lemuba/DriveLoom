@@ -1,87 +1,177 @@
 # DriveLoom
 
-DriveLoom is an independent Home Assistant integration for vehicle analytics, GPS tracks, trips and map views. DriveLoom starts with an empty database and can run beside Cardata Analytics. It does **not** read or migrate data from Cardata Analytics.
+**DriveLoom verbindet Fahrzeugdaten aus Home Assistant mit Verbrauchsanalyse, GPS-Fahrten und einer interaktiven Karte.** Auf derselben Karte kannst du Ladestationen und andere POIs recherchieren, Ziele planen und eigene Reisen mit Notizen und Dokumenten archivieren. Die Integration verwaltet ihre Daten in Home Assistant und funktioniert unabhängig von Cardata Analytics; dessen Daten werden weder gelesen noch übernommen.
+
+Die aktuelle Version ist **0.2.0**. DriveLoom enthält eine Fahrzeug- und Verbrauchsübersicht sowie eine Fahrzeugkarte für GPS, POIs, Routen und Reisen.
+
+[☕ DriveLoom auf Ko-fi unterstützen](https://ko-fi.com/lemuba20013)
+
+<img src="docs/screenshots/analytics-overview.jpg" alt="DriveLoom Fahrzeugübersicht mit Vergleichszeitraum und Verbrauchswerten" width="580">
 
 ## Installation
 
-Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
+### Voraussetzungen
 
-The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, use `/driveloom/driveloom-card-0.2.0.js?v=0.2.0` as a JavaScript module.
+- Home Assistant **2026.1.0 oder neuer**.
+- Vorhandene Home-Assistant-Sensoren für **Ladezustand (SoC)** und **Kilometerstand** je Fahrzeug. Die nutzbare Batteriekapazität wird ebenfalls benötigt: als Sensor bei den BMW-Profilen oder als Sensor beziehungsweise fester Wert beim generischen BEV.
+- Optional: Reichweite, SoH und GPS-Breitengrad/-Längengrad. Die beiden GPS-Sensoren müssen gemeinsam konfiguriert werden.
+- Für **Open Charge Map** ist bei aktivierter Quelle ein eigener API-Schlüssel erforderlich. Der Schlüssel bleibt im Home-Assistant-Backend. **OCPDB · MobiData BW** benötigt keinen Open-Charge-Map-Schlüssel.
 
-### Automatischer GPS-Start
+### HACS als benutzerdefiniertes Repository
 
-Unter **Tracking → GPS-Quellen verwalten** kann ein Administrator für jedes Fahrzeug eine GPS-Quelle und einen Auslöser wählen: die bisherige iPhone-/CarPlay-SSID oder eine vorhandene Home-Assistant-Entität `binary_sensor.*`. Beim Binärsensor bedeutet `on` verbunden, `off` getrennt; unbekannte oder nicht verfügbare Werte gelten als getrennt. Der bisherige Ablauf mit Pause, Wiederaufnahme und verzögertem Fahrtende bleibt erhalten. Bereits gespeicherte SSID-Regeln funktionieren ohne erneutes Speichern. Ein Binärsensor muss von einer eigenen HA-Integration oder Automation bereitgestellt werden; DriveLoom erzeugt ihn nicht selbst. Optional kann eine Standortanfrage an die iPhone-Companion-App gesendet werden.
+1. **HACS** öffnen und im Menü mit den drei Punkten **Benutzerdefinierte Repositories** wählen.
+2. `https://github.com/lemuba/DriveLoom` eintragen, als Typ **Integration** wählen und hinzufügen.
+3. **DriveLoom** in HACS öffnen und die aktuelle Version herunterladen.
+4. **Home Assistant neu starten**. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach **DriveLoom** suchen und ein Fahrzeug einrichten.
 
-On the map, GPS toggles live follow independently of OSM, OSM+, Topo, Satellite and 3D. Choose a style or zoom while following; a deliberate drag or another fit/track action exits live follow. With successive reliable position fixes, the map turns to keep the direction of travel at the top. The live camera uses the vehicle's current position, including a configured phone source; historical track markers do not control the camera.
+HACS verwaltet die Integrationsdateien. Im Lovelace-Storage-Modus registriert DriveLoom seine Dashboard-Ressource beim Start automatisch. Für den YAML-Ressourcenmodus ist zusätzlich der unten genannte Eintrag nötig. Allgemeine Hinweise: [HACS – Custom Repositories](https://www.hacs.dev/docs/faq/custom_repositories/).
 
-With POIs selected, live follow can show up to three nearest loaded, filtered POIs ahead of the vehicle and their straight-line distances in larger mobile-friendly rows. If fewer match, fewer rows are shown. The POI panel has a switch for these suggestions. Multiple selected charging networks (such as IONITY, EnBW and Tesla) are treated as alternatives. Tap any destination, then confirm its Google Maps navigation link. The straight-line distance does not represent the road route, and live suggestions require a recent reliable movement heading. To try the same selection and confirmation UI while parked, tap **Test POI suggestion** in the POI panel. The two-minute preview uses the chosen number of nearest loaded POIs around the vehicle without a direction filter and is explicitly labeled as a preview.
+### Manuell installieren
 
-The POI panel saves how many suggestions appear at once (1, 2 or 3), including in the stationary preview. On a phone the suggestion sits closer to the bottom edge. Tap the car button on the map to enter driving view: the title and both upper control rows disappear while the map grows to use their space. The visible map button restores the controls. GPS follow, zoom and the chosen basemap remain active.
+1. Den vollständigen Ordner `custom_components/driveloom` nach `<HA-Konfigurationsverzeichnis>/custom_components/driveloom` kopieren. Die Unterordner einschließlich `frontend/`, `brand/` und `translations/` erhalten.
+2. Bei einem Update alle Dateien der neuen Version übernehmen. Alte versionierte `driveloom-card-*.js` im Zielordner entfernen, sofern sie nicht mehr zur installierten Version gehören.
+3. Home Assistant neu starten und **DriveLoom** wie oben unter **Einstellungen → Geräte & Dienste** hinzufügen.
 
-When global POI presets exist, a compact selector in the suggestion card can switch between them without leaving GPS follow. Selecting a preset loads its saved filters and radius around the current vehicle; the card shows a loading state until matching data arrives. If more POIs are loaded than the configured visible count, the upward arrow advances one farther result and the downward arrow returns one nearer result. The visible window stays anchored to its first surviving POI as positions update, and resets when a different preset is chosen. Results are ordered by straight-line distance within the heading corridor, not by travel distance along roads.
+### Fahrzeug und Dashboard einrichten
 
-The double arrows jump directly to the farthest or nearest visible group. Tapping a suggestion opens a compact POI detail card and centers the map on the destination at the selected detail zoom (12–20, saved with global POI presets). GPS positions and POIs continue to update while the camera stays on the POI. Use **Back to vehicle** to restore the previous follow zoom and driving direction, or **Open Google Maps** to navigate. The stationary test preview returns to its earlier map position.
+Zunächst **BMW i3 120 Ah**, **BMW iX1** oder **BEV** wählen. Danach Namen, SoC-Sensor und Kilometerstand-Sensor zuordnen. Bei den BMW-Profilen den Sensor für die **nutzbare Gesamtkapazität** der Hochvoltbatterie angeben, nicht den momentanen Energieinhalt. Für BEV kann alternativ eine feste nutzbare Kapazität in kWh eingetragen werden. Reichweite, SoH und GPS-Sensoren sind abhängig vom Fahrzeugprofil optional. Weitere Fahrzeuge werden über **Gerät hinzufügen** eingerichtet; vorhandene lassen sich später neu konfigurieren.
 
-The POI settings panel scrolls vertically on tablets and phones. In the map suggestion, swipe the POI rows to browse farther or nearer places, use a trackpad or mouse wheel, or drag the compact position slider below the arrows. The card still renders only the configured 1–3 rows at a time, including when hundreds of places are loaded.
+<img src="docs/screenshots/integration-devices.jpg" alt="DriveLoom als Home-Assistant-Integration mit mehreren Fahrzeugen" width="580">
 
-The open POI panel and the current map position/zoom are restored after returning from another iPad app or a Safari page. The current view is captured immediately in the same browser tab and saved in the user's Home Assistant map preferences. When GPS follow is active, its live vehicle camera retains priority. Closing the POI panel clears the tab's temporary POI view. Browser private-storage restrictions can prevent the immediate tab copy; saved Home Assistant preferences remain the fallback. An open POI popup itself is not reopened after a full page reload.
+<details><summary>Beispiel: Zuordnung der Fahrzeugsensoren</summary>
 
-### Regional POI catalogue
+<img src="docs/screenshots/vehicle-setup.jpg" alt="Einrichtungsformular für SoC, Kilometerstand, Kapazität und optionale GPS-Sensoren" width="430">
 
-Open **Points of Interest → Regionaler POI-Katalog**, select any available countries (and optionally German federal states), choose the local Home Assistant hour and refresh interval (1–30 days), then save. An administrator must configure the shared catalogue. The first import starts automatically. The panel shows the count, last successful update and errors for each selection; refresh all or one country manually. Country options come from Geofabrik's index and require access to that service on first use. If the index fails to load, the panel explains the failure and provides **Weitere Länder laden** to retry.
+</details>
 
-Below the import status, **Gespeicherte Kataloge** lists complete local region databases and their sizes, including deselected countries. Deselect and save a country first; once imports have finished, confirm **Löschen** beside that country to reclaim its catalogue file. This action is limited to administrators and never deletes `driveloom.db`. Re-selecting the country later requires another download and import.
+Füge anschließend in einem Dashboard eine **Manuelle Karte** mit einem der folgenden Inhalte hinzu:
 
-The catalogue downloads a Geofabrik OpenStreetMap PBF extract for each selection (Germany is several GB) and builds a separate SQLite file in `<HA configuration>/.storage/` per region. A temporary download and database need additional space for each import. A failed import keeps the previous completed catalogue for that selection. Adjacent countries can be selected together for cross-border trips. Scheduled refreshes require Home Assistant to be running; stale catalogues also start updating after restart. Imports run one at a time. A dependency-free PBF reader works on HA installations where `osmium` cannot be installed; if `osmium` is already available, imports use its faster parser. Large countries can take substantially longer with the built-in reader. OCM continues to provide charging stations.
+```yaml
+type: custom:driveloom-card
+```
 
-The POI panel shows downloaded bytes, the advertised total and a progress bar during transfer. If the server does not supply a total, the bar remains indeterminate. The following database import is shown separately without a percentage because its duration cannot be inferred from transferred bytes.
+```yaml
+type: custom:driveloom-map-card
+```
 
-Spatial queries merge and deduplicate vehicle-near POIs and POIs in the visible map area across the selected countries. MapLibre clusters markers, while GPS follow uses the nearby results for its 1–3 destinations. Set a map result ceiling of 500–10,000 (3,000 on first enabling the catalogue). This limits each request, not the number stored in the regional databases. Zoom or filter in very dense areas to see other places. Ways use their approximate coordinate center; POIs mapped only as OSM multipolygon relations are not included. Deselect all countries for the old general-POI live search (up to 200 km).
+Bei Lovelace im **YAML-Ressourcenmodus** zusätzlich diese JavaScript-Modulressource eintragen:
 
-The catalogue is a periodic location snapshot, not a source of live opening hours or charger availability. OSM data © OpenStreetMap contributors, distributed via Geofabrik under the ODbL.
+```yaml
+resources:
+  - url: /driveloom/driveloom-card-0.2.0.js?v=0.2.0
+    type: module
+```
 
-### Travel planning and archive
+Bei einem Update die Dashboard-Seite neu laden. Falls noch eine ältere Version angezeigt wird, Browser- oder App-Cache sowie den Ressourcenpfad prüfen.
 
-Open **Reisen** on the vehicle map. Create nested folders and mark travel destinations as **Reise**; folders can be renamed, moved to another parent, and given a planned, traveling or archived status. Open folders with a tap in the tree or folder list, use breadcrumbs to go back, and expand or collapse tree branches. Drag a folder onto another folder to move it on desktop; the **In Ordner verschieben** selector works on touch screens too. This folder tree is independent of recorded GPS trips. Choose a folder and show only its own POIs on the map, with an option to include descendants. **Alle eigenen Reise-POIs auf Karte zeigen** also includes unassigned own POIs, keeps their pins visible after closing the panel and temporarily hides the global template POIs. Turn it off to restore the earlier POI view. Switch to **Recherche-POIs** and select a saved global POI template to display its usual filters while planning. Save an existing map POI with **Für Reise merken**, tap **Beliebigen Kartenpunkt wählen** then the map, press and hold a map point, or enter a POI manually. A swipe cancels the long press. Select an own POI to highlight and focus it on the map at the POI detail zoom, which is also part of global templates. **Zurück zur Karte** restores the previous map camera. Edit a POI's name, category, website, phone, address and metadata; choose its map marker color and one or two letters/digits for its symbol. A valid website has a separate browser link. The main note under its address is shared wherever that POI is assigned; additional trip-specific notes remain below. A saved POI can belong to multiple folders, while the assignment selector offers own POIs not yet in the current folder. Folders also support multiple editable notes.
+## Funktionsumfang
 
-The travel panel accepts a place or address search and coordinates such as `59.437, 24.753` or Google Maps links containing `@latitude,longitude` or `!3dlatitude!4dlongitude`. Plain coordinates stay on your Home Assistant; an explicit address search sends the term from Home Assistant to the public Photon service. There is no live autocomplete. Google Maps short links without embedded coordinates are not resolved. Choose a result to focus the map, then optionally save it as an own travel POI. Search results do not add anything to the archive until saved.
+### Fahrzeugübersicht und Verbrauch
 
-Upload PDF, images, Office files and other document types to any folder. Tap a document to see its details and, for PDFs, common images and text, a preview; download is a separate button. The PDF viewer has no restrictive iframe sandbox and offers **PDF im Browser öffnen** if inline preview is unsupported by the browser. Previewing files over 30 MiB needs another tap; Office documents show details and can be downloaded for a suitable app. **Dokument verschieben nach** moves a document to any other folder and checks the target's total storage limit before moving the metadata; the content stays unchanged. Files are held as BLOB chunks in a separate `.storage/driveloom-documents.db` SQLite database; metadata and folder relationships are stored in the main `driveloom.db`. The configurable quota starts at 100 MiB **per trip**; folders outside a trip share their top-level folder's 100 MiB default quota, which can also be changed. DriveLoom imposes no separate per-document size setting; large files still require enough free disk space and usable browser memory for previews/downloads. The travel ZIP export includes folders, own POIs, notes and documents. Restore that export into an **empty** travel archive from the Reisen panel. A selected-folder export includes its path to the root and its descendants; **Alle Ordner** exports everything. It does not include vehicle tracks, regional POI catalogues or Home Assistant settings. Back up Home Assistant separately.
+Die Analysekarte zeigt Fahrzeugzustand, SoC, Reichweite, Kilometerstand und Kapazität sowie Verbrauch und Fahrleistung für heute, Woche, Monat, Jahr und einen selbst gewählten Zeitraum. Ein gemeinsamer Datumsbereich erlaubt den Vergleich mehrerer Fahrzeuge. Fahrten- und Verbrauchsanalysen verwenden die von DriveLoom gespeicherten Daten; fehlende Werte werden nicht als gemessene Nullen ausgegeben. Werkzeuge zur Prüfung und Reparatur der SoC-Daten sind in der Übersicht erreichbar.
 
-Own POIs use visible map pins with their chosen color and symbol. Tap one to focus it and open its travel details.
+### Fahrzeugkarte und Kartensteuerung
 
-### Ladestationen und Suche voraus
+Die Karte zeigt mehrere Fahrzeuge mit ein- und ausblendbaren Markern und, soweit Daten vorhanden sind, deren Reichweite. Zur Wahl stehen **OSM, OSM+, Topo, Satellit und 3D**. In 3D lassen sich unter anderem Neigung, Drehung und Geländehöhe einstellen. **GPS-Follow** hält das gewählte Fahrzeug im Blick und kann nach zuverlässigen aufeinanderfolgenden Positionspunkten die Fahrtrichtung nach oben drehen. Eine Fahransicht blendet die obere Bedienleiste aus und gibt der Karte mehr Platz.
 
-Im POI-Panel kann für Ladestationen **Open Charge Map** oder **OCPDB · MobiData BW (Deutschland)** gewählt werden. Für OCPDB stehen Betreiber, Steckertyp, Mindestleistung, Preis vorhanden, Höchstpreis pro kWh und die Mindestzahl aktuell verfügbarer Ladepunkte zur Auswahl. Diese Filter lassen sich in den globalen POI-Vorlagen speichern und gelten dann auch für POIs in der GPS-Follow-Ansicht. Die OCPDB-Abfrage nutzt öffentliche Stations-, EVSE-, Stecker-, Tarif- und Zuordnungsdaten. Preise werden nur angezeigt, wenn der Ad-hoc-Tarif dem konkreten EVSE und Stecker zugeordnet und als eindeutiger Energiepreis lesbar ist. Ein zusätzlicher Zeittarif wird eigens gekennzeichnet. Bei fehlender oder zu alter Belegungsmeldung gilt der Status als unbekannt und erfüllt den Filter „nur verfügbar“ nicht. DriveLoom fragt im GPS-Follow höchstens etwa alle 90 Sekunden an. Vollständige Ladepunkt-Suchgebiete liegen in `.storage/driveloom-ocpdb.db` und können für Standort-/Preissuchen bis zu 15 Minuten wiederverwendet werden; Belegungsdaten aus dem Cache gelten nach 90 Sekunden als unbekannt. Bei „nur verfügbar“ wird nach höchstens 90 Sekunden wieder online geprüft. Große Suchen werden nach allen verfügbaren Seiten bis zur Sicherheitsgrenze von 100.000 Kandidaten ausgeführt; die Karte weist auf unvollständige Ergebnisse hin. Ohne OCPDB-Auswahl bleibt Open Charge Map verfügbar.
+<img src="docs/screenshots/vehicle-map.jpg" alt="Fahrzeugkarte mit zwei Fahrzeugen, Reichweiten und POI-Markern" width="620">
 
-Der POI-Standtest im unteren Panel nutzt dieselben gespeicherten globalen Vorlagen und Filter wie die Karte. Als POI-Zentrum kann das aktuelle Fahrzeug oder die Kartenmitte gewählt werden. Beim Standtest lassen sich alle Richtungen, eine Himmelsrichtung oder die Richtung zum vorhandenen Routenziel wählen. Die Entfernung wird vom gewählten Zentrum berechnet; während GPS-Follow zählt weiterhin die ermittelte Fahrtrichtung. In Vorschau, Popup und POI-Liste steht bei Ladepunkten der Betreiber vorne, darunter möglichst Ort oder Adresse. Die technische Stationskennung steht nur in den Details. Das bisherige zusätzliche Menü „Schnelllader voraus · manuell“ entfällt; schon gespeicherte Suchprofile bleiben intern erhalten, sind in dieser Ansicht jedoch nicht ausführbar. Das Routenziel liefert lediglich eine Himmelsrichtung; tatsächlicher Straßenkorridor und Umweg werden nicht berechnet. Preise und Verfügbarkeit können sich vor Ankunft ändern; für eine Ladeentscheidung die Betreiberangaben am Ladepunkt prüfen.
+Kartenposition, Zoom und ein offenes POI-Panel werden nach einem App-Wechsel oder einem Neuaufbau der Karte wiederhergestellt. Bei aktivem GPS-Follow hat die Fahrzeugkamera Vorrang. Ein geöffnetes POI-Popup wird nach vollständigem Neuladen nicht selbstständig wieder geöffnet.
 
-Die Integration enthält keine KI-Suche und benötigt weder Gemini noch Tavily. Eine zuvor in DriveLoom gespeicherte Gemini- oder Tavily-Zugangsinformation wird beim Start der Integration aus der Suchkonfiguration entfernt. Andere Dienste und deren eigene Kontoeinstellungen sind davon unabhängig.
+### GPS-Aufzeichnung und Fahrten
 
-Das Lade-POI-Popup trennt Betreiber- und Stations-Webseite, sofern Open Charge Map diese liefert. Für PRÄG ist eine allgemeine Betreiber-Webseite hinterlegt; für Öschlesee in Sulzberg ist zusätzlich eine gesondert gekennzeichnete Drittanbieter-Seite mit Datenstand September 2026 verlinkt. Diese Webseite ist keine Live-Preisquelle.
+Unter **Tracking/GPS-Historie** kannst du die Aufzeichnung pro Fahrzeug einschalten, Zeiträume und Darstellungen wählen, Fahrten in Ordner einordnen und Tracks auf der Karte betrachten. Die Ansicht bietet unter anderem farbige Geschwindigkeitsabschnitte, Legende, Fahrtenauswahl, GPX-Export, Wiedergabe und einen manuellen Import älterer GPS-Daten aus dem Home-Assistant-Recorder. Fahrten lassen sich einzeln oder gesammelt bearbeiten.
 
-Die aktuelle Version ist `v0.2.0`. Nach der Dateiübernahme Home Assistant neu starten und die Kartenressource bei Bedarf neu laden.
+Neben den konfigurierten Fahrzeugsensoren sind **externe GPS-Quellen** möglich, etwa eine Position aus der iPhone-Companion-App. Fahrten können damit manuell gestartet werden. Pro Fahrzeug kann alternativ ein automatischer Auslöser verwendet werden:
 
-## Persistent data
+- ein vorhandener Sensor mit einer bestimmten WLAN-/CarPlay-**SSID**; oder
+- eine vorhandene Home-Assistant-Entität `binary_sensor.*` mit `on` für verbunden und `off` für getrennt.
 
-DriveLoom stores its own persistent data in `<HA configuration>/.storage/driveloom.db`:
+Bei Unterbrechung wird die automatische Fahrt pausiert; nach Wiederverbindung kann sie fortgesetzt werden. Nach längerem Getrenntsein endet sie. Ein unbekannter oder nicht verfügbarer Binärsensor zählt als getrennt. Optional kann DriveLoom während der aktiven Fahrt Standortaktualisierungen der iPhone-Companion-App anfordern. DriveLoom **erzeugt den Binärsensor nicht selbst**. Bereits gespeicherte SSID-Regeln bleiben nutzbar.
 
-- GPS fixes, tracking settings and phone GPS source configuration;
-- trip identities, merged trips, folders and assignments;
-- vehicle consumption counters, daily history, source sensor observations and trip analytics counter samples;
-- global date selections, route templates, destinations, POI templates, map preferences and server-side charging-station caches.
+<img src="docs/screenshots/gps-settings.jpg" alt="GPS-Historie mit externer iPhone-Quelle und automatischem Start per SSID oder Binärsensor" width="620">
 
-The optional POI catalogues are stored separately in `.storage/driveloom-pois-<region hash>.db` so each completed replacement can be activated atomically. An existing legacy `driveloom-pois.db` catalogue is migrated automatically when possible.
+<details><summary>Weitere Ansicht: aufgezeichnete Strecke und Fahrtenliste</summary>
 
-The travel archive uses `travel_*` tables in `driveloom.db`; uploaded document data is stored in `.storage/driveloom-documents.db`.
+<img src="docs/screenshots/gps-history.jpg" alt="GPS-Historie mit Track, Geschwindigkeitslegende, GPX und Fahrtenliste" width="620">
 
-The daily consumption history remains a **daily_history table** rather than a separate ledger file. Map preferences are stored per Home Assistant user. Browser map tiles remain a disposable local cache; fullscreen state is temporary. The large charging-register CSV is downloaded to a temporary file and removed after parsing.
+</details>
 
-Home Assistant itself still owns the integration's configuration entries and credentials, the entity and device registries, dashboards, and any HA Recorder history. Those are outside this integration's database. Existing manual Recorder import for historical GPS points remains available; trip-consumption and SoC-repair queries use DriveLoom's own samples from installation onward. No import from Cardata Analytics is included. The travel archive has a separate ZIP export and restore; other DriveLoom data and Home Assistant configuration are not part of that travel export.
+### POI-Suche, Filter und Vorlagen
 
-Do not copy the live SQLite file while Home Assistant is writing to it: SQLite WAL files may hold uncheckpointed changes. Use the travel archive ZIP export for travel folders, own POIs, notes and documents; continue backing up the rest of Home Assistant separately.
+Im POI-Panel kannst du Kategorien, Suchbegriffe für allgemeine POIs und getrennte Filter für Ladestationen kombinieren. Als Suchzentrum dienen das **aktuelle Fahrzeug** oder die **Kartenmitte**. Filter und Suchradius lassen sich in globalen POI-Vorlagen speichern. POI-Marker werden auf der Karte zusammengefasst und bei näherem Zoom einzeln sichtbar.
 
+<img src="docs/screenshots/poi-filters.png" alt="POI-Panel mit Kategorien, allgemeiner Suche und getrennten Ladestationsfiltern" width="620">
 
-## License
+<details><summary>Vorlagen auf dem Smartphone wählen</summary>
 
-See [LICENSE](LICENSE).
+<img src="docs/screenshots/poi-presets.png" alt="Auswahl gespeicherter POI-Vorlagen über der mobilen Karte" width="290">
+
+</details>
+
+Mit **GPS-Follow** zeigt eine Kachel auf Wunsch **ein bis drei vorausliegende POIs** aus den geladenen und gefilterten Ergebnissen. Eine Vorlage kann direkt in der Kachel gewechselt werden. Pfeile, Doppelpfeile, Wischen, Mausrad und ein Positionsregler blättern durch weitere Treffer. Ein Tipp auf einen POI zentriert ihn beim einstellbaren Detailzoom; danach kannst du zur Fahrzeugansicht zurückkehren oder die Navigation an Google Maps übergeben. Der **POI-Hinweis-Test** zeigt die Auswahl auch im Stand. Die angezeigten Entfernungen sind Luftlinien, keine Straßenentfernungen.
+
+<img src="docs/screenshots/poi-ahead.png" alt="Zwei POIs in Fahrtrichtung mit Betreiber, Ort und Entfernung auf dem iPhone" width="290">
+
+<details><summary>Weitere mobile Ansichten: Vorlagenwechsel und POI-Vorschau</summary>
+
+<img src="docs/screenshots/poi-ahead-presets.png" alt="Vorlagenauswahl innerhalb der POI-Kachel im Fahrmodus" width="290">
+<img src="docs/screenshots/poi-preview.png" alt="POI-Detailvorschau mit Preis und Rückkehr zum Fahrzeug" width="290">
+
+</details>
+
+### Ladestationen, Preise und Verfügbarkeit
+
+Für Ladepunkte kannst du zwischen **Open Charge Map** und **OCPDB · MobiData BW (Deutschland)** wählen. Je nach Quelle stehen Betreiber, Steckertyp, Mindestleistung, bekannter Ad-hoc-Preis, Höchstpreis pro kWh und die Mindestzahl freier Ladepunkte als Filter bereit. Diese Einstellungen können Teil einer globalen POI-Vorlage sein und werden auch für POIs in GPS-Follow verwendet.
+
+<img src="docs/screenshots/charging-source.png" alt="Wahl zwischen Open Charge Map und OCPDB als Ladepunktquelle" width="620">
+
+OCPDB-Preise zeigt DriveLoom nur an, wenn ein lesbarer Tarif dem betreffenden Stecker und Ladepunkt zugeordnet werden kann. Zusätzliche Zeitgebühren werden gesondert gekennzeichnet. Veraltete oder fehlende Statusmeldungen zählen als **unbekannt** und nicht als frei. Ein Ladepunkt-Popup stellt verfügbare Betreiber- und Stationslinks getrennt dar. **Preis, Status und weitere Gebühren vor dem Laden beim Betreiber oder am Ladepunkt prüfen.**
+
+<img src="docs/screenshots/charging-details.png" alt="Ladepunktdetails auf dem iPhone mit Leistung, Ad-hoc-Preis, Belegung und Navigation" width="290">
+
+### Regionaler POI-Katalog
+
+Über **Points of Interest → Regionaler POI-Katalog** können Administratoren Länder und optional deutsche Bundesländer für einen lokalen OSM-POI-Katalog wählen. DriveLoom lädt regionale Geofabrik-PBF-Auszüge, importiert sie nacheinander in eigene SQLite-Dateien und aktualisiert sie zu einer eingestellten Uhrzeit im Abstand von **1 bis 30 Tagen**. Der Download zeigt übertragene Bytes und, falls bekannt, einen Fortschrittsbalken; die anschließende Datenbank-Importphase wird getrennt angezeigt. Fertige Kataloge bleiben während einer fehlgeschlagenen Aktualisierung erhalten.
+
+Ausgewählte Regionen werden für Fahrzeugnähe und sichtbaren Kartenausschnitt abgefragt. Die einstellbare Obergrenze von **500 bis 10.000 Treffern pro Kartenabfrage** begrenzt die Darstellung, nicht den gespeicherten Katalog. Große Länder benötigen entsprechend Downloadzeit, Speicherplatz und Importzeit. Ein abgewählter Katalog kann in **Gespeicherte Kataloge** gezielt gelöscht werden. Der OSM-Katalog enthält keine Live-Belegung oder gesicherten aktuellen Ladepreise.
+
+### Routen und Ziele
+
+Die Routenansicht erlaubt einen Startpunkt vom Fahrzeug, vom Smartphone oder einem gewählten Ort, ein Ziel und Zwischenziele. Orte lassen sich suchen und globale Routenvorlagen speichern. Punkte auf der Karte oder POIs können als Start, Zwischenziel oder Ziel übernommen werden; für die eigentliche Navigation gibt es die Übergabe an eine externe Karten-App. Der POI-Standtest kann sich auf die Richtung zum vorhandenen Routenziel beziehen. Ein angezeigter POI „voraus“ ist dadurch **nicht automatisch entlang einer berechneten Straßenroute** geprüft.
+
+<img src="docs/screenshots/route-planner.png" alt="Routenplanung mit Fahrzeugstart, Zwischenziel, Ziel und 3D-Kartenansicht" width="620">
+
+### Reisen, eigene POIs und Dokumente
+
+Unter **Reisen** legst du beliebig verschachtelte Ordner und Reiseordner an. Ordner können umbenannt, verschoben und mit Notizen versehen werden. Die Ordneransicht bietet Baum, Breadcrumbs und Bedienung per Maus oder Touch. Eigene Reise-POIs können aus bestehenden Karten-POIs, einer beliebigen Kartenposition, einer Orts-/Adresssuche oder eingefügten Koordinaten entstehen. Name, Adresse, Webseite, Farbe, Markerkürzel und Notizen sind bearbeitbar. Ein eigener POI kann mehreren Ordnern zugeordnet sein.
+
+Du kannst nur die POIs eines Ordners samt optionalen Unterordnern oder **alle eigenen Reise-POIs** auf der Karte anzeigen. Bei der Ansicht aller eigenen POIs werden globale Vorlagen-POIs vorübergehend ausgeblendet. Für die Recherche innerhalb der Reiseansicht sind globale POI-Vorlagen ebenfalls verfügbar.
+
+PDFs, Bilder, Office-Dateien und weitere Dokumente können in Ordner geladen und später verschoben werden. PDF, gängige Bilder und Text können je nach Browser zunächst angesehen werden; **Download ist eine gesonderte Aktion**. Office-Dateien benötigen für die Anzeige gegebenenfalls eine passende externe App. Der anfängliche Speicherrahmen beträgt **100 MiB pro Reise beziehungsweise oberstem Ordner** und ist anpassbar; es gibt keine gesonderte Größenoption pro Dokument. Reiseordner, eigene POIs, Notizen und Dokumente lassen sich als ZIP exportieren und in ein **leeres** Reisearchiv zurückspielen.
+
+Die Suche versteht direkte Koordinaten wie `59.437, 24.753` und Google-Maps-Links mit eingebetteten Koordinaten. Eine ausdrücklich gestartete Orts-/Adresssuche verwendet den öffentlichen Photon-Dienst. Kurze Weiterleitungslinks ohne enthaltene Koordinaten werden nicht aufgelöst.
+
+<img src="docs/screenshots/travel-archive.png" alt="Reiseplanung mit Ordnerbaum, eigenen POIs, Suche und Kartenansicht" width="620">
+
+## Datenhaltung, externe Dienste und Sicherung
+
+| Daten | Ablage und Hinweise |
+| --- | --- |
+| Fahrzeuge, Analysen, GPS-Punkte, Fahrten, Reise-Metadaten und Kartenpräferenzen | `<HA-Konfiguration>/.storage/driveloom.db` |
+| Regionale OSM-Kataloge | Eigene `.storage/driveloom-pois-<Region>.db`-Dateien; ein kompletter Katalog kann nach Abwahl gelöscht werden |
+| Hochgeladene Dokumentinhalte | `.storage/driveloom-documents.db`; Ordnerbeziehungen und Metadaten liegen in `driveloom.db` |
+| OCPDB-Suchcache | `.storage/driveloom-ocpdb.db`; Belegungsdaten werden kürzer als Standort-/Tarifdaten verwendet |
+| Home-Assistant-Konfiguration und Recorder | Werden von Home Assistant verwaltet und sind **nicht** Teil eines DriveLoom-Reise-ZIP-Exports |
+
+Die allgemeine POI-Live-Suche nutzt OpenStreetMap-Daten, der regionale Katalog [Geofabrik](https://download.geofabrik.de/) und Ladestationen je nach Auswahl [Open Charge Map](https://openchargemap.org/) oder [MobiData BW/OCPDB](https://mobidata-bw.de/dataset/e-ladesaulen). Kartenstile und Kacheln können externe Kartendienste nutzen. Google Maps wird erst bei einer entsprechenden Navigation geöffnet. Eine ausdrücklich gestartete Adresssuche im Reisearchiv sendet den Suchbegriff an Photon; direkt eingegebene Koordinaten bleiben in Home Assistant. DriveLoom benötigt keine Gemini- oder Tavily-KI.
+
+Die Reise-ZIP-Sicherung enthält **keine** Fahrzeugtracks, regionalen Kataloge und HA-Einstellungen. Für die gesamte Installation weiterhin Home-Assistant-Backups verwenden. Eine laufende SQLite-Datei nicht einzeln kopieren: Schreibvorgänge können noch in SQLite-WAL-Dateien stehen.
+
+## Projekt unterstützen
+
+Wenn dir DriveLoom gefällt, kannst du die Weiterentwicklung freiwillig über [Ko-fi unterstützen](https://ko-fi.com/lemuba20013). DriveLoom ist auch ohne Spende nutzbar.
+
+## Lizenz und Mitwirkung
+
+Siehe [LICENSE](LICENSE). Fehlerberichte und konkrete Verbesserungsvorschläge sind unter [GitHub Issues](https://github.com/lemuba/DriveLoom/issues) willkommen.
