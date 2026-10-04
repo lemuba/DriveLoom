@@ -1,7 +1,8 @@
 # DriveLoom
 
-**DriveLoom verbindet Fahrzeugdaten aus Home Assistant mit Verbrauchsanalyse, GPS-Fahrten und einer interaktiven Karte.** Auf derselben Karte kannst du Ladestationen und andere POIs recherchieren, Ziele planen und eigene Reisen mit Notizen und Dokumenten archivieren. Die Integration verwaltet ihre Daten in Home Assistant und funktioniert unabhängig von Cardata Analytics; dessen Daten werden weder gelesen noch übernommen.
+[Deutsch](#installation) · [English](#english)
 
+**DriveLoom verbindet Fahrzeugdaten aus Home Assistant mit Verbrauchsanalyse, GPS-Fahrten und einer interaktiven Karte.** Auf derselben Karte kannst du Ladestationen und andere POIs recherchieren, Ziele planen und eigene Reisen mit Notizen und Dokumenten archivieren. Die Integration verwaltet ihre Daten in Home Assistant.
 Die aktuelle Version ist **0.2.0**. DriveLoom enthält eine Fahrzeug- und Verbrauchsübersicht sowie eine Fahrzeugkarte für GPS, POIs, Routen und Reisen.
 
 [☕ DriveLoom auf Ko-fi unterstützen](https://ko-fi.com/lemuba20013)
@@ -34,7 +35,7 @@ HACS verwaltet die Integrationsdateien. Im Lovelace-Storage-Modus registriert Dr
 
 ### Fahrzeug und Dashboard einrichten
 
-Zunächst **BMW i3 120 Ah**, **BMW iX1** oder **BEV** wählen. Danach Namen, SoC-Sensor und Kilometerstand-Sensor zuordnen. Bei den BMW-Profilen den Sensor für die **nutzbare Gesamtkapazität** der Hochvoltbatterie angeben, nicht den momentanen Energieinhalt. Für BEV kann alternativ eine feste nutzbare Kapazität in kWh eingetragen werden. Reichweite, SoH und GPS-Sensoren sind abhängig vom Fahrzeugprofil optional. Weitere Fahrzeuge werden über **Gerät hinzufügen** eingerichtet; vorhandene lassen sich später neu konfigurieren.
+Zunächst **BEV** wählen. Danach Namen, SoC-Sensor und Kilometerstand-Sensor zuordnen. Bei den BMW-Profilen den Sensor für die **nutzbare Gesamtkapazität** der Hochvoltbatterie angeben, nicht den momentanen Energieinhalt. Für BEV kann alternativ eine feste nutzbare Kapazität in kWh eingetragen werden. Reichweite, SoH und GPS-Sensoren sind abhängig vom Fahrzeugprofil optional. Weitere Fahrzeuge werden über **Gerät hinzufügen** eingerichtet; vorhandene lassen sich später neu konfigurieren.
 
 <img src="docs/screenshots/integration-devices.jpg" alt="DriveLoom als Home-Assistant-Integration mit mehreren Fahrzeugen" width="580">
 
@@ -132,7 +133,7 @@ OCPDB-Preise zeigt DriveLoom nur an, wenn ein lesbarer Tarif dem betreffenden St
 
 ### Regionaler POI-Katalog
 
-Über **Points of Interest → Regionaler POI-Katalog** können Administratoren Länder und optional deutsche Bundesländer für einen lokalen OSM-POI-Katalog wählen. DriveLoom lädt regionale Geofabrik-PBF-Auszüge, importiert sie nacheinander in eigene SQLite-Dateien und aktualisiert sie zu einer eingestellten Uhrzeit im Abstand von **1 bis 30 Tagen**. Der Download zeigt übertragene Bytes und, falls bekannt, einen Fortschrittsbalken; die anschließende Datenbank-Importphase wird getrennt angezeigt. Fertige Kataloge bleiben während einer fehlgeschlagenen Aktualisierung erhalten.
+Über **Points of Interest → Regionaler POI-Katalog** können Anwender Länder und optional deutsche Bundesländer für einen lokalen OSM-POI-Katalog wählen. DriveLoom lädt regionale Geofabrik-PBF-Auszüge, importiert sie nacheinander in eigene SQLite-Dateien und aktualisiert sie zu einer eingestellten Uhrzeit im Abstand von **1 bis 30 Tagen**. Der Download zeigt übertragene Bytes und, falls bekannt, einen Fortschrittsbalken; die anschließende Datenbank-Importphase wird getrennt angezeigt. Fertige Kataloge bleiben während einer fehlgeschlagenen Aktualisierung erhalten.
 
 Ausgewählte Regionen werden für Fahrzeugnähe und sichtbaren Kartenausschnitt abgefragt. Die einstellbare Obergrenze von **500 bis 10.000 Treffern pro Kartenabfrage** begrenzt die Darstellung, nicht den gespeicherten Katalog. Große Länder benötigen entsprechend Downloadzeit, Speicherplatz und Importzeit. Ein abgewählter Katalog kann in **Gespeicherte Kataloge** gezielt gelöscht werden. Der OSM-Katalog enthält keine Live-Belegung oder gesicherten aktuellen Ladepreise.
 
@@ -142,7 +143,7 @@ Die Routenansicht erlaubt einen Startpunkt vom Fahrzeug, vom Smartphone oder ein
 
 <img src="docs/screenshots/route-planner.png" alt="Routenplanung mit Fahrzeugstart, Zwischenziel, Ziel und 3D-Kartenansicht" width="620">
 
-### Reisen, eigene POIs und Dokumente
+### Reisen (noch in der weiteren Entwicklung), eigene POIs und Dokumente
 
 Unter **Reisen** legst du beliebig verschachtelte Ordner und Reiseordner an. Ordner können umbenannt, verschoben und mit Notizen versehen werden. Die Ordneransicht bietet Baum, Breadcrumbs und Bedienung per Maus oder Touch. Eigene Reise-POIs können aus bestehenden Karten-POIs, einer beliebigen Kartenposition, einer Orts-/Adresssuche oder eingefügten Koordinaten entstehen. Name, Adresse, Webseite, Farbe, Markerkürzel und Notizen sind bearbeitbar. Ein eigener POI kann mehreren Ordnern zugeordnet sein.
 
@@ -170,8 +171,187 @@ Die Reise-ZIP-Sicherung enthält **keine** Fahrzeugtracks, regionalen Kataloge u
 
 ## Projekt unterstützen
 
-Wenn dir DriveLoom gefällt, kannst du die Weiterentwicklung freiwillig über [Ko-fi unterstützen](https://ko-fi.com/lemuba20013). DriveLoom ist auch ohne Spende nutzbar.
+Wenn dir DriveLoom gefällt, kannst du die Weiterentwicklung freiwillig über [Ko-fi unterstützen](https://ko-fi.com/lemuba20013). DriveLoom ist natürlich auch ohne Spende nutzbar.
 
 ## Lizenz und Mitwirkung
 
 Siehe [LICENSE](LICENSE). Fehlerberichte und konkrete Verbesserungsvorschläge sind unter [GitHub Issues](https://github.com/lemuba/DriveLoom/issues) willkommen.
+
+---
+
+## English
+
+**DriveLoom brings Home Assistant vehicle data together with consumption analysis, GPS trips, and an interactive map.** On the same map, you can explore charging stations and other points of interest (POIs), plan destinations, and archive trips with notes and documents. The integration stores its data in Home Assistant.
+The current version is **0.2.0**. DriveLoom includes a vehicle and consumption dashboard as well as a vehicle map for GPS, POIs, routes, and travel planning.
+
+[☕ Support DriveLoom on Ko-fi](https://ko-fi.com/lemuba20013)
+
+<img src="docs/screenshots/analytics-overview.jpg" alt="DriveLoom vehicle dashboard with date comparison and consumption figures" width="580">
+
+### Installation
+
+#### Requirements
+
+- Home Assistant **2026.1.0 or newer**.
+- Existing Home Assistant sensors for **state of charge (SoC)** and **odometer** for each vehicle. Usable battery capacity is also required: as a sensor for the BMW profiles, or as a sensor or fixed value for the generic BEV profile.
+- Optional: range, state of health (SoH), and GPS latitude/longitude. The two GPS sensors must be configured together.
+- An **Open Charge Map** API key is required if that source is enabled. The key remains in the Home Assistant backend. **OCPDB · MobiData BW** does not require an Open Charge Map key.
+
+#### HACS custom repository
+
+1. Open **HACS**, select the three-dot menu, and choose **Custom repositories**.
+2. Enter `https://github.com/lemuba/DriveLoom`, select **Integration** as the type, and add it.
+3. Open **DriveLoom** in HACS and download the current version.
+4. **Restart Home Assistant**. Go to **Settings → Devices & services → Add integration**, search for **DriveLoom**, and set up a vehicle.
+
+HACS manages the integration files. In Lovelace storage mode, DriveLoom registers its dashboard resource automatically at startup. YAML resource mode requires the additional entry shown below. General guidance: [HACS – Custom Repositories](https://www.hacs.dev/docs/faq/custom_repositories/).
+
+#### Manual installation
+
+1. Copy the entire `custom_components/driveloom` directory to `<HA configuration directory>/custom_components/driveloom`. Keep the subdirectories, including `frontend/`, `brand/`, and `translations/`.
+2. When updating, copy all files from the new version. Remove old versioned `driveloom-card-*.js` files from the destination if they do not belong to the installed version.
+3. Restart Home Assistant and add **DriveLoom** under **Settings → Devices & services** as described above.
+
+#### Set up a vehicle and dashboard
+
+First select **BEV**. Then assign a name, SoC sensor, and odometer sensor. With BMW profiles, provide the sensor for the high-voltage battery's **total usable capacity**, not its current energy content. For BEV, you can instead enter a fixed usable capacity in kWh. Range, SoH, and GPS sensors are optional depending on the vehicle profile. Add more vehicles through **Add device**; existing vehicles can be reconfigured later.
+
+<img src="docs/screenshots/integration-devices.jpg" alt="DriveLoom integration in Home Assistant with multiple vehicles" width="580">
+
+<details><summary>Example: assigning vehicle sensors</summary>
+
+<img src="docs/screenshots/vehicle-setup.jpg" alt="Setup form for SoC, odometer, capacity, and optional GPS sensors" width="430">
+
+</details>
+
+Next, add a **Manual card** to a dashboard with one of these configurations:
+
+```yaml
+type: custom:driveloom-card
+```
+
+```yaml
+type: custom:driveloom-map-card
+```
+
+If you use Lovelace **YAML resource mode**, also add this JavaScript module resource:
+
+```yaml
+resources:
+  - url: /driveloom/driveloom-card-0.2.0.js?v=0.2.0
+    type: module
+```
+
+After an update, reload the dashboard page. If it still shows an older version, check the browser or app cache and the resource path.
+
+### Features
+
+#### Vehicle dashboard and consumption
+
+The dashboard shows vehicle status, SoC, range, odometer, and capacity, plus consumption and distance for today, this week, this month, this year, and a custom period. A shared date range lets you compare vehicles. Trip and consumption analysis uses data stored by DriveLoom; missing values are not treated as measured zeroes. Tools for checking and repairing SoC data are accessible from the dashboard.
+
+#### Vehicle map and map controls
+
+The map displays multiple vehicles with markers that can be shown or hidden, and their range where available. Choose among **OSM, OSM+, Topo, Satellite, and 3D**. The 3D view offers controls including pitch, rotation, and terrain elevation. **GPS Follow** keeps the selected vehicle in view and can rotate the direction of travel to the top after consecutive reliable position updates. A driving view hides the upper control bar to give the map more room.
+
+<img src="docs/screenshots/vehicle-map.jpg" alt="Vehicle map with two vehicles, range overlays, and POI markers" width="620">
+
+The map restores its position, zoom, and open POI panel after switching apps or rebuilding the card. When GPS Follow is active, the vehicle camera takes precedence. An open POI popup is not reopened automatically after a full reload.
+
+#### GPS recording and trips
+
+Under **Tracking/GPS History**, you can enable recording for each vehicle, choose periods and display options, organize trips in folders, and inspect tracks on the map. The view includes colored speed segments, a legend, trip selection, GPX export, playback, and manual import of older GPS data from the Home Assistant Recorder. Trips can be edited individually or in batches.
+
+In addition to configured vehicle sensors, **external GPS sources** are supported, such as a position from the iPhone Companion app. Trips can be started manually. Alternatively, each vehicle can use an automatic trigger:
+
+- an existing sensor reporting a particular Wi-Fi/CarPlay **SSID**; or
+- an existing Home Assistant `binary_sensor.*` entity, with `on` meaning connected and `off` meaning disconnected.
+
+A disconnection pauses the automatic trip; it can resume after reconnection. A longer disconnection ends it. An unknown or unavailable binary sensor is treated as disconnected. Optionally, DriveLoom can request location updates from the iPhone Companion app during an active trip. DriveLoom **does not create the binary sensor itself**. Previously saved SSID rules remain usable.
+
+<img src="docs/screenshots/gps-settings.jpg" alt="GPS history with external iPhone source and automatic start via SSID or binary sensor" width="620">
+
+<details><summary>More: recorded route and trip list</summary>
+
+<img src="docs/screenshots/gps-history.jpg" alt="GPS history with track, speed legend, GPX, and trip list" width="620">
+
+</details>
+
+#### POI search, filters, and presets
+
+In the POI panel, you can combine categories and search terms for general POIs with separate charging-station filters. The search center can be the **current vehicle** or the **map center**. Filters and search radius can be saved in global POI presets. POI markers are clustered on the map and shown individually as you zoom in.
+
+<img src="docs/screenshots/poi-filters.png" alt="POI panel with categories, general search, and separate charging-station filters" width="620">
+
+<details><summary>Choose presets on a smartphone</summary>
+
+<img src="docs/screenshots/poi-presets.png" alt="Selecting saved POI presets above the mobile map" width="290">
+
+</details>
+
+With **GPS Follow**, an optional panel shows **one to three POIs ahead** from the loaded and filtered results. You can switch presets directly in the panel. Arrows, double arrows, swiping, the mouse wheel, and a position slider browse additional results. Tapping a POI centers it at the configurable detail zoom; you can then return to the vehicle view or hand navigation over to Google Maps. The **Test POI ahead** control displays the selection while stationary. Distances shown are straight-line distances, not road distances.
+
+<img src="docs/screenshots/poi-ahead.png" alt="Two POIs ahead with operator, town, and distance on an iPhone" width="290">
+
+<details><summary>More mobile views: switching presets and previewing a POI</summary>
+
+<img src="docs/screenshots/poi-ahead-presets.png" alt="Selecting a preset within the POI panel in driving mode" width="290">
+<img src="docs/screenshots/poi-preview.png" alt="POI detail preview with price and return to vehicle" width="290">
+
+</details>
+
+#### Charging stations, prices, and availability
+
+For charging points, choose between **Open Charge Map** and **OCPDB · MobiData BW (Germany)**. Depending on the source, filters include operator, connector type, minimum power, known ad hoc price, maximum price per kWh, and minimum number of available charging points. These settings can be part of a global POI preset and also apply to POIs in GPS Follow.
+
+<img src="docs/screenshots/charging-source.png" alt="Choosing Open Charge Map or OCPDB as the charging-point source" width="620">
+
+DriveLoom displays OCPDB prices only when a readable tariff can be associated with the relevant connector and charging point. Additional time-based fees are identified separately. Stale or missing status reports count as **unknown**, not available. A charging-point popup separates available operator and station links. **Check the price, status, and additional fees with the operator or at the charging point before charging.**
+
+<img src="docs/screenshots/charging-details.png" alt="Charging-point details on iPhone with power, ad hoc price, occupancy, and navigation" width="290">
+
+#### Regional POI catalog
+
+Under **Points of Interest → Regional POI Catalog**, users can select countries and optionally German federal states for a local OSM POI catalog. DriveLoom downloads regional Geofabrik PBF extracts, imports them one at a time into separate SQLite files, and refreshes them at a chosen time every **1 to 30 days**. The download displays transferred bytes and a progress bar where the total is known; database import progress is shown separately. Completed catalogs remain available if an update fails.
+
+Selected regions are queried near the vehicle and within the visible map area. The configurable limit of **500 to 10,000 results per map query** restricts the display, not the stored catalog. Large countries require corresponding download time, disk space, and import time. After deselecting a catalog, you can delete it explicitly under **Stored catalogs**. The OSM catalog does not contain live occupancy or guaranteed current charging prices.
+
+#### Routes and destinations
+
+The route view can use the vehicle, smartphone, or a selected place as the starting point, with a destination and intermediate stops. You can search for places and save global route presets. Map points or POIs can be used as the start, a stop, or the destination; navigation itself is handed over to an external maps app. The stationary POI test can use the direction toward an existing route destination. A POI shown as “ahead” is therefore **not necessarily checked against a calculated road route**.
+
+<img src="docs/screenshots/route-planner.png" alt="Route planning with vehicle start, intermediate stop, destination, and 3D map" width="620">
+
+#### Travel (still in development), personal POIs, and documents
+
+Under **Travel**, you can create nested folders and trip folders at any depth. Folders can be renamed, moved, and annotated. The folder view offers a tree, breadcrumbs, and mouse or touch controls. You can create personal trip POIs from existing map POIs, any map position, a place/address search, or pasted coordinates. Name, address, website, color, marker abbreviation, and notes are editable. A personal POI can belong to several folders.
+
+You can show only the POIs of one folder, optionally including its subfolders, or **all personal trip POIs** on the map. When all personal POIs are displayed, POIs from global presets are temporarily hidden. Global POI presets are also available for research within the Travel view.
+
+PDFs, images, Office files, and other documents can be uploaded to folders and moved later. Depending on the browser, PDFs, common images, and text can first be previewed; **download is a separate action**. Office files may require a suitable external app for viewing. The initial storage allowance is **100 MiB per trip or top-level folder** and can be adjusted; there is no separate per-document size setting. Trip folders, personal POIs, notes, and documents can be exported as a ZIP and restored into an **empty** travel archive.
+
+The search accepts direct coordinates such as `59.437, 24.753` and Google Maps links containing coordinates. An explicitly initiated place/address search uses the public Photon service. Short redirect links without embedded coordinates are not resolved.
+
+<img src="docs/screenshots/travel-archive.png" alt="Travel planning with folder tree, personal POIs, search, and map" width="620">
+
+### Data storage, external services, and backups
+
+| Data | Storage and notes |
+| --- | --- |
+| Vehicles, analyses, GPS points, trips, travel metadata, and map preferences | `<HA configuration>/.storage/driveloom.db` |
+| Regional OSM catalogs | Separate `.storage/driveloom-pois-<Region>.db` files; an entire catalog can be deleted after deselection |
+| Uploaded document contents | `.storage/driveloom-documents.db`; folder relationships and metadata are stored in `driveloom.db` |
+| OCPDB search cache | `.storage/driveloom-ocpdb.db`; occupancy data is retained for less time than location/tariff data |
+| Home Assistant configuration and Recorder | Managed by Home Assistant and **not** included in a DriveLoom travel ZIP export |
+
+General live POI search uses OpenStreetMap data, the regional catalog uses [Geofabrik](https://download.geofabrik.de/), and charging stations use [Open Charge Map](https://openchargemap.org/) or [MobiData BW/OCPDB](https://mobidata-bw.de/dataset/e-ladesaulen/), depending on your selection. Map styles and tiles may use external map services. Google Maps opens only when you choose the corresponding navigation action. An explicitly started address search in the travel archive sends the query to Photon; coordinates entered directly stay within Home Assistant. DriveLoom does not require Gemini or Tavily AI.
+
+The travel ZIP backup does **not** contain vehicle tracks, regional catalogs, or Home Assistant settings. Continue using Home Assistant backups for the full installation. Do not copy an active SQLite database file on its own: pending writes may still be in SQLite WAL files.
+
+### Support the project
+
+If you like DriveLoom, you can [support its development on Ko-fi](https://ko-fi.com/lemuba20013). Donations are optional; DriveLoom works without them.
+
+### License and contributions
+
+See [LICENSE](LICENSE). Bug reports and specific suggestions for improvements are welcome through [GitHub Issues](https://github.com/lemuba/DriveLoom/issues).
