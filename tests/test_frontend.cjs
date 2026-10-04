@@ -53,6 +53,7 @@ const registry = new Map();
 const intervals = new Set();
 const frames = new Set();
 const storage = new Map();
+const session = new Map();
 const timeouts = new Set();
 const document = {hidden:false, body:{appendChild(){}}, createElement:()=>new Element()};
 const context = vm.createContext({
@@ -61,6 +62,7 @@ const context = vm.createContext({
   CSS:{escape:s=>s}, navigator:{language:'de-DE'}, document,
   window:{customCards:[],matchMedia:()=>({matches:false}),confirm:()=>true},
   localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
+  sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v),removeItem:k=>session.delete(k)},
   performance:{now:()=>now}, queueMicrotask:()=>{},
   setInterval:fn=>{const timer={fn};intervals.add(timer);return timer;}, clearInterval:t=>intervals.delete(t),
   requestAnimationFrame:fn=>{const frame={fn};frames.add(frame);return frame;}, cancelAnimationFrame:frame=>frames.delete(frame),
@@ -119,6 +121,55 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 let checks=0;
 async function test(name, fn){await fn();checks++;console.log('PASS',name);}
 (async()=>{
+  await test('iPad POI planning view survives card rebuild and stale backend preferences',async()=>{
+    const original=new Card();
+    const preferenceWrites=[];
+    original._hass={callWS:async request=>preferenceWrites.push(request)};
+    original._preferencesLoaded=true;
+    original._center={lat:52.393,lon:11.619};original._zoom=16;
+    original._vectorMap={getCenter:()=>({lat:52.393,lng:11.619}),getZoom:()=>16};
+    original._setPoiPanelOpen(true);
+    const save=[...timeouts].at(-1);timeouts.delete(save);await save.fn();
+    assert.equal(preferenceWrites.at(-1).preferences.poiPanelOpen,true);
+    assert.equal(preferenceWrites.at(-1).preferences.center.lat,52.393);
+    const key=original._poiViewSessionKey();
+    assert.equal(JSON.parse(session.get(key)).zoom,16);
+    const restored=new Card();
+    restored._applyPreferences({mode:'osm',center:{lat:54.02,lon:9.9},zoom:12,poiPanelOpen:false});
+    assert.equal(restored._poiPanelOpen,true);
+    assert.equal(restored._center.lat,52.393);
+    assert.equal(restored._center.lon,11.619);
+    assert.equal(restored._zoom,16);
+    restored._hass={language:'de',locale:{language:'de'},states:{}};
+    restored._registryLoaded=true;
+    restored._vehicles=()=>[{deviceId:'vehicle',valid:true,lat:54.02,lon:9.9}];
+    restored._visibleVehicles=restored._vehicles;
+    restored._destroyVectorBasemap=()=>{};
+    restored._wireEvents=()=>{};
+    restored._styles=()=>'';
+    restored._structureSignature=()=>'';restored._stateSignature=()=>'';
+    restored._updateGpsMotionFromHass=()=>{};
+    let fitted=0, rendered=0;
+    restored._fitVisibleVehicles=()=>fitted++;
+    restored._renderMap=()=>rendered++;
+    restored._updateControls=()=>{};
+    restored._renderVehiclePanel=()=>{};restored._renderPoiPanel=()=>{};
+    restored._renderRoutePanel=()=>{};restored._renderTrackingPanel=()=>{};
+    restored.shadowRoot={innerHTML:'',getElementById:()=>new Element()};
+    restored._renderFull();
+    assert.match(restored.shadowRoot.innerHTML,/class="poi-panel " id="poi-panel"/);
+    const frame=[...frames].at(-1);frames.delete(frame);frame.fn();
+    assert.equal(fitted,0);assert.equal(rendered,1);
+    assert.equal(restored._center.lat,52.393);
+    restored._setPoiPanelOpen(false);
+    assert.equal(session.has(key),false);
+    const follow=new Card();
+    session.set(key,JSON.stringify({panel:true,center:{lat:52.393,lon:11.619},zoom:16}));
+    follow._applyPreferences({mode:'gps',center:{lat:54.02,lon:9.9},zoom:12,poiPanelOpen:false});
+    assert.equal(follow._poiPanelOpen,true);
+    assert.equal(follow._center.lat,54.02); // Live follow owns its camera.
+    session.delete(key);
+  });
   await test('trip click filters actual map sources, summary, markers and playback',async()=>{
     const {c,panel,sources}=fixture();
     assert.equal(sources['driveloom-tracks'].data.features.length,27);

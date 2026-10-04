@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b11 — Beta: POI-Ansicht nach App-Wechsel wiederherstellen
+
+- Persist the POI panel state in per-user Home Assistant map preferences and keep a synchronous copy of the panel and camera in the current browser tab.
+- Restore the saved map center and zoom on map-card initialization rather than fitting all vehicles over the planning location. GPS follow still controls its own live camera.
+- Capture the view on map movement, when the browser hides the page, and when the card is removed. Closing the panel clears the tab-specific view.
+- Include a complete project handoff prompt with the source package. Version the resource as `driveloom-card-0.2.0b11.js`; stable `v0.1.14` is unchanged.
+
 ## 0.2.0b10 — Beta: einheitliches POI-Panel und lesbare Ladepunkte
 
 - Remove the redundant upper manual charger search panel; use the saved filters and stationary POI preview in the lower POI panel. Existing search profiles are retained in storage.

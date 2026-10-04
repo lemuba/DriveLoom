@@ -6,7 +6,7 @@ DriveLoom is an independent Home Assistant integration for vehicle analytics, GP
 
 Copy `custom_components/driveloom` to the matching folder below your Home Assistant configuration directory, restart Home Assistant and add **DriveLoom** through **Settings → Devices & services → Add integration**. Configure each vehicle with its source entities. Home Assistant 2026.1.0 or newer is required. This repository also includes `hacs.json` for HACS custom-repository installation.
 
-The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.2.0b10.js?v=0.2.0b10` as a JavaScript module.
+The integration registers its dashboard card as a Lovelace resource automatically when Lovelace uses storage mode. Add `custom:driveloom-card` for the analytics overview or `custom:driveloom-map-card` for the map. In YAML resource mode, replace the old resource with `/driveloom/driveloom-card-0.2.0b11.js?v=0.2.0b11` as a JavaScript module.
 
 On the map, GPS toggles live follow independently of OSM, OSM+, Topo, Satellite and 3D. Choose a style or zoom while following; a deliberate drag or another fit/track action exits live follow. With successive reliable position fixes, the map turns to keep the direction of travel at the top. The live camera uses the vehicle's current position, including a configured phone source; historical track markers do not control the camera.
 
@@ -19,6 +19,8 @@ When global POI presets exist, a compact selector in the suggestion card can swi
 The double arrows jump directly to the farthest or nearest visible group. Tapping a suggestion opens a compact POI detail card and centers the map on the destination at the selected detail zoom (12–20, saved with global POI presets). GPS positions and POIs continue to update while the camera stays on the POI. Use **Back to vehicle** to restore the previous follow zoom and driving direction, or **Open Google Maps** to navigate. The stationary test preview returns to its earlier map position.
 
 The POI settings panel scrolls vertically on tablets and phones. In the map suggestion, swipe the POI rows to browse farther or nearer places, use a trackpad or mouse wheel, or drag the compact position slider below the arrows. The card still renders only the configured 1–3 rows at a time, including when hundreds of places are loaded.
+
+The open POI panel and the current map position/zoom are restored after returning from another iPad app or a Safari page. The current view is captured immediately in the same browser tab and saved in the user's Home Assistant map preferences. When GPS follow is active, its live vehicle camera retains priority. Closing the POI panel clears the tab's temporary POI view. Browser private-storage restrictions can prevent the immediate tab copy; saved Home Assistant preferences remain the fallback. An open POI popup itself is not reopened after a full page reload.
 
 ### Regional POI catalogue
 
@@ -34,7 +36,7 @@ Spatial queries merge and deduplicate vehicle-near POIs and POIs in the visible 
 
 The catalogue is a periodic location snapshot, not a source of live opening hours or charger availability. OSM data © OpenStreetMap contributors, distributed via Geofabrik under the ODbL.
 
-### Travel planning and archive (0.2.0b10 beta)
+### Travel planning and archive (0.2.0b11 beta)
 
 Open **Reisen** on the vehicle map. Create nested folders and mark travel destinations as **Reise**; folders can be renamed, moved to another parent, and given a planned, traveling or archived status. Open folders with a tap in the tree or folder list, use breadcrumbs to go back, and expand or collapse tree branches. Drag a folder onto another folder to move it on desktop; the **In Ordner verschieben** selector works on touch screens too. This folder tree is independent of recorded GPS trips. Choose a folder and show only its own POIs on the map, with an option to include descendants. **Alle eigenen Reise-POIs auf Karte zeigen** also includes unassigned own POIs, keeps their pins visible after closing the panel and temporarily hides the global template POIs. Turn it off to restore the earlier POI view. Switch to **Recherche-POIs** and select a saved global POI template to display its usual filters while planning. Save an existing map POI with **Für Reise merken**, tap **Beliebigen Kartenpunkt wählen** then the map, press and hold a map point, or enter a POI manually. A swipe cancels the long press. Select an own POI to highlight and focus it on the map at the POI detail zoom, which is also part of global templates. **Zurück zur Karte** restores the previous map camera. Edit a POI's name, category, website, phone, address and metadata; choose its map marker color and one or two letters/digits for its symbol. A valid website has a separate browser link. The main note under its address is shared wherever that POI is assigned; additional trip-specific notes remain below. A saved POI can belong to multiple folders, while the assignment selector offers own POIs not yet in the current folder. Folders also support multiple editable notes.
 
@@ -44,7 +46,7 @@ Upload PDF, images, Office files and other document types to any folder. Tap a d
 
 In `v0.2.0b4`, own POIs use visible DOM pins on the map, with their chosen color and symbol. Tap one to focus it and open its travel details.
 
-### Ladestationen und Suche voraus (0.2.0b10 beta)
+### Ladestationen und Suche voraus (0.2.0b11 beta)
 
 Im POI-Panel kann für Ladestationen **Open Charge Map** oder **OCPDB · MobiData BW (Deutschland)** gewählt werden. Für OCPDB stehen Betreiber, Steckertyp, Mindestleistung, Preis vorhanden, Höchstpreis pro kWh und die Mindestzahl aktuell verfügbarer Ladepunkte zur Auswahl. Diese Filter lassen sich in den globalen POI-Vorlagen speichern und gelten dann auch für POIs in der GPS-Follow-Ansicht. Die OCPDB-Abfrage nutzt öffentliche Stations-, EVSE-, Stecker-, Tarif- und Zuordnungsdaten. Preise werden nur angezeigt, wenn der Ad-hoc-Tarif dem konkreten EVSE und Stecker zugeordnet und als eindeutiger Energiepreis lesbar ist. Ein zusätzlicher Zeittarif wird eigens gekennzeichnet. Bei fehlender oder zu alter Belegungsmeldung gilt der Status als unbekannt und erfüllt den Filter „nur verfügbar“ nicht. DriveLoom fragt im GPS-Follow höchstens etwa alle 90 Sekunden an. Vollständige Ladepunkt-Suchgebiete liegen in `.storage/driveloom-ocpdb.db` und können für Standort-/Preissuchen bis zu 15 Minuten wiederverwendet werden; Belegungsdaten aus dem Cache gelten nach 90 Sekunden als unbekannt. Bei „nur verfügbar“ wird nach höchstens 90 Sekunden wieder online geprüft. Große Suchen werden nach allen verfügbaren Seiten bis zur Sicherheitsgrenze von 100.000 Kandidaten ausgeführt; die Karte weist auf unvollständige Ergebnisse hin. Ohne OCPDB-Auswahl bleibt Open Charge Map verfügbar.
 
@@ -54,7 +56,7 @@ Die Beta enthält keine KI-Suche und benötigt weder Gemini noch Tavily. Eine zu
 
 Das Lade-POI-Popup trennt Betreiber- und Stations-Webseite, sofern Open Charge Map diese liefert. Für PRÄG ist eine allgemeine Betreiber-Webseite hinterlegt; für Öschlesee in Sulzberg ist zusätzlich eine gesondert gekennzeichnete Drittanbieter-Seite mit Datenstand September 2026 verlinkt. Diese Webseite ist keine Live-Preisquelle.
 
-Das GitHub-Tag `v0.2.0b10` ist ein Pre-release. Entpacke das vollständige HACS-ZIP für die manuelle Übernahme; der stabile Tag `v0.1.14` bleibt unberührt. Nach der Dateiübernahme Home Assistant neu starten und die Kartenressource bei Bedarf neu laden.
+Das GitHub-Tag `v0.2.0b11` ist ein Pre-release. Entpacke das vollständige HACS-ZIP für die manuelle Übernahme; der stabile Tag `v0.1.14` bleibt unberührt. Nach der Dateiübernahme Home Assistant neu starten und die Kartenressource bei Bedarf neu laden.
 
 ## Persistent data
 
