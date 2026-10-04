@@ -1,6 +1,7 @@
 # DriveLoom
 
-**DriveLoom verbindet Fahrzeugdaten aus Home Assistant mit Verbrauchsanalyse, GPS-Fahrten und einer interaktiven Karte.** Auf derselben Karte kannst du Ladestationen und andere POIs recherchieren, Ziele planen und eigene Reisen mit Notizen und Dokumenten archivieren. Die Integration verwaltet ihre Daten in Home Assistant.
+**DriveLoom verbindet Fahrzeugdaten aus Home Assistant mit Verbrauchsanalyse, GPS-Fahrten und einer interaktiven Karte.** Auf derselben Karte kannst du Ladestationen und andere POIs recherchieren, Ziele planen und eigene Reisen mit Notizen und Dokumenten archivieren. Die Integration verwaltet ihre Daten in Home Assistant und funktioniert unabhängig von Cardata Analytics; dessen Daten werden weder gelesen noch übernommen.
+
 Die aktuelle Version ist **0.2.0**. DriveLoom enthält eine Fahrzeug- und Verbrauchsübersicht sowie eine Fahrzeugkarte für GPS, POIs, Routen und Reisen.
 
 [☕ DriveLoom auf Ko-fi unterstützen](https://ko-fi.com/lemuba20013)
@@ -33,7 +34,7 @@ HACS verwaltet die Integrationsdateien. Im Lovelace-Storage-Modus registriert Dr
 
 ### Fahrzeug und Dashboard einrichten
 
-Zunächst **BEV** wählen. Danach Namen, SoC-Sensor und Kilometerstand-Sensor zuordnen. Bei den BMW-Profilen den Sensor für die **nutzbare Gesamtkapazität** der Hochvoltbatterie angeben, nicht den momentanen Energieinhalt. Für BEV kann alternativ eine feste nutzbare Kapazität in kWh eingetragen werden. Reichweite, SoH und GPS-Sensoren sind abhängig vom Fahrzeugprofil optional. Weitere Fahrzeuge werden über **Gerät hinzufügen** eingerichtet; vorhandene lassen sich später neu konfigurieren.
+Zunächst **BMW i3 120 Ah**, **BMW iX1** oder **BEV** wählen. Danach Namen, SoC-Sensor und Kilometerstand-Sensor zuordnen. Bei den BMW-Profilen den Sensor für die **nutzbare Gesamtkapazität** der Hochvoltbatterie angeben, nicht den momentanen Energieinhalt. Für BEV kann alternativ eine feste nutzbare Kapazität in kWh eingetragen werden. Reichweite, SoH und GPS-Sensoren sind abhängig vom Fahrzeugprofil optional. Weitere Fahrzeuge werden über **Gerät hinzufügen** eingerichtet; vorhandene lassen sich später neu konfigurieren.
 
 <img src="docs/screenshots/integration-devices.jpg" alt="DriveLoom als Home-Assistant-Integration mit mehreren Fahrzeugen" width="580">
 
@@ -131,7 +132,7 @@ OCPDB-Preise zeigt DriveLoom nur an, wenn ein lesbarer Tarif dem betreffenden St
 
 ### Regionaler POI-Katalog
 
-Über **Points of Interest → Regionaler POI-Katalog** können Anwender Länder und optional deutsche Bundesländer für einen lokalen OSM-POI-Katalog wählen. DriveLoom lädt regionale Geofabrik-PBF-Auszüge, importiert sie nacheinander in eigene SQLite-Dateien und aktualisiert sie zu einer eingestellten Uhrzeit im Abstand von **1 bis 30 Tagen**. Der Download zeigt übertragene Bytes und, falls bekannt, einen Fortschrittsbalken; die anschließende Datenbank-Importphase wird getrennt angezeigt. Fertige Kataloge bleiben während einer fehlgeschlagenen Aktualisierung erhalten.
+Über **Points of Interest → Regionaler POI-Katalog** können Administratoren Länder und optional deutsche Bundesländer für einen lokalen OSM-POI-Katalog wählen. DriveLoom lädt regionale Geofabrik-PBF-Auszüge, importiert sie nacheinander in eigene SQLite-Dateien und aktualisiert sie zu einer eingestellten Uhrzeit im Abstand von **1 bis 30 Tagen**. Der Download zeigt übertragene Bytes und, falls bekannt, einen Fortschrittsbalken; die anschließende Datenbank-Importphase wird getrennt angezeigt. Fertige Kataloge bleiben während einer fehlgeschlagenen Aktualisierung erhalten.
 
 Ausgewählte Regionen werden für Fahrzeugnähe und sichtbaren Kartenausschnitt abgefragt. Die einstellbare Obergrenze von **500 bis 10.000 Treffern pro Kartenabfrage** begrenzt die Darstellung, nicht den gespeicherten Katalog. Große Länder benötigen entsprechend Downloadzeit, Speicherplatz und Importzeit. Ein abgewählter Katalog kann in **Gespeicherte Kataloge** gezielt gelöscht werden. Der OSM-Katalog enthält keine Live-Belegung oder gesicherten aktuellen Ladepreise.
 
@@ -141,7 +142,7 @@ Die Routenansicht erlaubt einen Startpunkt vom Fahrzeug, vom Smartphone oder ein
 
 <img src="docs/screenshots/route-planner.png" alt="Routenplanung mit Fahrzeugstart, Zwischenziel, Ziel und 3D-Kartenansicht" width="620">
 
-### Reisen (noch in der weiteren Entwicklung), eigene POIs und Dokumente
+### Reisen, eigene POIs und Dokumente
 
 Unter **Reisen** legst du beliebig verschachtelte Ordner und Reiseordner an. Ordner können umbenannt, verschoben und mit Notizen versehen werden. Die Ordneransicht bietet Baum, Breadcrumbs und Bedienung per Maus oder Touch. Eigene Reise-POIs können aus bestehenden Karten-POIs, einer beliebigen Kartenposition, einer Orts-/Adresssuche oder eingefügten Koordinaten entstehen. Name, Adresse, Webseite, Farbe, Markerkürzel und Notizen sind bearbeitbar. Ein eigener POI kann mehreren Ordnern zugeordnet sein.
 
@@ -169,7 +170,7 @@ Die Reise-ZIP-Sicherung enthält **keine** Fahrzeugtracks, regionalen Kataloge u
 
 ## Projekt unterstützen
 
-Wenn dir DriveLoom gefällt, kannst du die Weiterentwicklung freiwillig über [Ko-fi unterstützen](https://ko-fi.com/lemuba20013). DriveLoom ist natürlich auch ohne Spende nutzbar.
+Wenn dir DriveLoom gefällt, kannst du die Weiterentwicklung freiwillig über [Ko-fi unterstützen](https://ko-fi.com/lemuba20013). DriveLoom ist auch ohne Spende nutzbar.
 
 ## Lizenz und Mitwirkung
 
